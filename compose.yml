@@ -24,9 +24,8 @@ services:
           path: ./server
           ignore:
             - server/tmp/
-        - action: sync
-          path: ./static
-          target: /app/static
+        - action: rebuild
+          path: ./web
         - action: rebuild
           path: ./Dockerfile
 

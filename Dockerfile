@@ -19,6 +19,18 @@ COPY server/upload_server.go ./
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o upload_server .
 
+FROM ghcr.io/cirruslabs/flutter:stable AS flutter_builder
+
+# Set working directory
+WORKDIR /app
+
+# Copy the web source code
+COPY web/ .
+# Get Flutter dependencies
+RUN dart pub get
+# Build the web app
+RUN dart run jaspr_cli:jaspr build
+
 # Final stage - minimal Alpine Linux
 FROM alpine:latest
 
@@ -35,8 +47,9 @@ WORKDIR /app
 # Copy the built Go binary from builder
 COPY --from=builder /build/upload_server /app/upload_server
 
-# Copy static files (index.html, etc.)
-COPY static/ ./static/
+# Copy the built Flutter web files
+COPY --from=flutter_builder /app/build/jaspr/index.html ./static/
+COPY --from=flutter_builder /app/build/jaspr/*.js ./static/
 
 # Create uploads directory and set permissions
 RUN mkdir -p /var/uploads /app/static && \
