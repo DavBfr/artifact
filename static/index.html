@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Artifact Server</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+
+        .navbar-brand {
+            font-weight: 600;
+        }
+
+        .upload-zone {
+            border: 2px dashed #dee2e6;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            transition: all 0.3s ease;
+            background-color: white;
+        }
+
+        .upload-zone:hover {
+            border-color: #0d6efd;
+            background-color: #f8f9ff;
+        }
+
+        .upload-zone.dragover {
+            border-color: #0d6efd;
+            background-color: #e7f3ff;
+        }
+
+        .file-icon {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            margin-right: 16px;
+        }
+
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .refresh-btn {
+            transition: transform 0.3s ease;
+        }
+
+        .refresh-btn:hover {
+            transform: rotate(180deg);
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <span class="navbar-brand mb-0 h1">
+                <i class="bi bi-archive"></i>
+                Artifact Server
+            </span>
+            <div class="navbar-nav ms-auto">
+                <button class="btn btn-outline-light me-2" onclick="toggleAuth()" id="auth-btn" style="display: none;">
+                    <i class="bi bi-key"></i>
+                    <span id="auth-btn-text">Login</span>
+                </button>
+                <button class="btn btn-outline-light" onclick="refreshFiles()">
+                    <i class="bi bi-arrow-clockwise refresh-btn"></i>
+                    Refresh
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Stats -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card stats-card">
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-md-4">
+                                <h4 id="total-files">-</h4>
+                                <p class="mb-0">Total Files</p>
+                            </div>
+                            <div class="col-md-4">
+                                <h4 id="total-size">-</h4>
+                                <p class="mb-0">Total Size</p>
+                            </div>
+                            <div class="col-md-4">
+                                <h4 id="last-upload">-</h4>
+                                <p class="mb-0">Last Upload</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Section (only shown when authenticated) -->
+        <div class="row mb-4" id="upload-section" style="display: none;">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-cloud-upload"></i>
+                            Upload Artifact
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="upload-zone" id="upload-zone">
+                            <i class="bi bi-cloud-upload fs-1 text-muted mb-3"></i>
+                            <h5>Drop files here or click to browse</h5>
+                            <p class="text-muted" id="max-size-text">Maximum file size:</p>
+                            <small class="text-muted d-block mb-2">
+                                Upload via curl
+                                <button class="btn btn-sm" onclick="copyCurlCommand(event)" title="Copy to clipboard">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </small>
+                            <input type="file" id="file-input" class="d-none" multiple>
+                            <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">
+                                <i class="bi bi-plus-circle"></i>
+                                Select Files
+                            </button>
+                        </div>
+
+                        <!-- Upload Progress -->
+                        <div class="upload-progress mt-3" style="display: none;">
+                            <div class="d-flex justify-content-between mb-2">
+                                <span id="upload-filename">Uploading...</span>
+                                <span id="upload-percentage">0%</span>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                     id="upload-progress-bar"
+                                     role="progressbar"
+                                     style="width: 0%">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Files List -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-files"></i>
+                            Artifacts
+                        </h5>
+                        <small class="text-muted" id="files-count">Loading...</small>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="loading" class="text-center p-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2 text-muted">Loading artifacts...</p>
+                        </div>
+
+                        <div id="files-list" style="display: none;">
+                            <!-- Files will be populated here -->
+                        </div>
+
+                        <div id="no-files" class="text-center p-5" style="display: none;">
+                            <i class="bi bi-inbox fs-1 text-muted"></i>
+                            <h5 class="mt-3 text-muted">No artifacts uploaded yet</h5>
+                            <p class="text-muted">Use the API with authentication token to upload artifacts.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Authentication Modal -->
+    <div class="modal fade" id="authModal" tabindex="-1" aria-labelledby="authModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="authModalLabel">Authentication</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="auth-token" class="form-label">API Token</label>
+                        <input type="password" class="form-control" id="auth-token" placeholder="Enter your API token">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="login()">Login</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast notifications -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="notification-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header">
+                <i class="bi bi-info-circle text-primary me-2"></i>
+                <strong class="me-auto">Notification</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body">
+                <!-- Message will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let files = [];
+        let authToken = localStorage.getItem('authToken');
+        let maxContentLength = 100 * 1024 * 1024; // Default to 100MB
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            updateAuthUI();
+            setupUploadHandlers();
+            setupKeyboardHandlers();
+            loadConfig();
+            loadFiles();
+        });
+
+        function setupKeyboardHandlers() {
+            const authBtn = document.getElementById('auth-btn');
+
+            document.addEventListener('keydown', function(e) {
+                if (e.altKey) {
+                    authBtn.style.display = 'inline-block';
+                }
+            });
+
+            document.addEventListener('keyup', function(e) {
+                if (!e.altKey) {
+                    // Only hide if not authenticated
+                    if (!authToken) {
+                        authBtn.style.display = 'none';
+                    }
+                }
+            });
+
+            // Handle window blur (when user switches away from browser)
+            window.addEventListener('blur', function() {
+                if (!authToken) {
+                    authBtn.style.display = 'none';
+                }
+            });
+        }
+
+        function updateAuthUI() {
+            const authBtn = document.getElementById('auth-btn');
+            const authBtnText = document.getElementById('auth-btn-text');
+            const uploadSection = document.getElementById('upload-section');
+
+            if (authToken) {
+                authBtn.className = 'btn btn-outline-success me-2';
+                authBtnText.textContent = 'Logout';
+                authBtn.style.display = 'inline-block'; // Always show when authenticated
+                uploadSection.style.display = 'block';
+            } else {
+                authBtn.className = 'btn btn-outline-light me-2';
+                authBtnText.textContent = 'Login';
+                authBtn.style.display = 'none'; // Hide when not authenticated
+                uploadSection.style.display = 'none';
+            }
+        }
+
+        function toggleAuth() {
+            if (authToken) {
+                logout();
+            } else {
+                const modal = new bootstrap.Modal(document.getElementById('authModal'));
+                modal.show();
+            }
+        }
+
+        function login() {
+            const tokenInput = document.getElementById('auth-token');
+            const token = tokenInput.value.trim();
+
+            if (!token) {
+                showNotification('Please enter a token', 'error');
+                return;
+            }
+
+            authToken = token;
+            localStorage.setItem('authToken', token);
+            updateAuthUI();
+
+            const modal = bootstrap.Modal.getInstance(document.getElementById('authModal'));
+            modal.hide();
+            tokenInput.value = '';
+
+            showNotification('Logged in successfully', 'success');
+            loadFiles(); // Refresh to show delete buttons
+        }
+
+        function logout() {
+            authToken = null;
+            localStorage.removeItem('authToken');
+            updateAuthUI();
+            showNotification('Logged out successfully', 'success');
+            loadFiles(); // Refresh to hide delete buttons
+        }
+
+        function copyCurlCommand(event) {
+            event.stopPropagation(); // Prevent triggering file upload
+
+            const serverUrl = window.location.origin;
+            const token = authToken || '{token}';
+            const curlCommand = `curl --progress-bar -H 'Authorization: Bearer ${token}' ${serverUrl}/api/upload -F 'file=@example.zip' | cat`;
+
+            navigator.clipboard.writeText(curlCommand).then(() => {
+                showNotification('Curl command copied to clipboard!', 'success');
+            }).catch(err => {
+                showNotification('Failed to copy: ' + err.message, 'error');
+            });
+        }
+
+        function setupUploadHandlers() {
+            const uploadZone = document.getElementById('upload-zone');
+            const fileInput = document.getElementById('file-input');
+
+            if (!uploadZone || !fileInput) return;
+
+            // Drag and drop handlers
+            uploadZone.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                uploadZone.classList.add('dragover');
+            });
+
+            uploadZone.addEventListener('dragleave', function(e) {
+                e.preventDefault();
+                uploadZone.classList.remove('dragover');
+            });
+
+            uploadZone.addEventListener('drop', function(e) {
+                e.preventDefault();
+                uploadZone.classList.remove('dragover');
+                const droppedFiles = e.dataTransfer.files;
+                handleFiles(droppedFiles);
+            });
+
+            // File input handler
+            fileInput.addEventListener('change', function(e) {
+                handleFiles(e.target.files);
+            });
+        }
+
+        function handleFiles(fileList) {
+            Array.from(fileList).forEach(file => {
+                uploadFile(file);
+            });
+        }
+
+        function uploadFile(file) {
+            if (!authToken) {
+                showNotification('Please login first', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('token', authToken);
+
+            // Show upload progress
+            showUploadProgress(file.name);
+
+            fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                hideUploadProgress();
+                if (data.success) {
+                    showNotification('File uploaded successfully: ' + data.file.name, 'success');
+                    loadFiles(); // Refresh file list
+                } else {
+                    showNotification('Upload failed: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                hideUploadProgress();
+                showNotification('Upload failed: ' + error.message, 'error');
+            });
+        }
+
+        function deleteFile(filename) {
+            if (!authToken) {
+                showNotification('Please login first', 'error');
+                return;
+            }
+
+            if (!confirm(`Are you sure you want to delete "${filename}"?`)) {
+                return;
+            }
+
+            fetch(`/api/delete/${encodeURIComponent(filename)}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${authToken}`
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('File deleted successfully', 'success');
+                    loadFiles(); // Refresh file list
+                } else {
+                    showNotification('Delete failed: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                showNotification('Delete failed: ' + error.message, 'error');
+            });
+        }
+
+        function showUploadProgress(filename) {
+            const progressDiv = document.querySelector('.upload-progress');
+            if (progressDiv) {
+                progressDiv.style.display = 'block';
+                document.getElementById('upload-filename').textContent = filename;
+                document.getElementById('upload-percentage').textContent = '0%';
+                document.getElementById('upload-progress-bar').style.width = '0%';
+            }
+        }
+
+        function hideUploadProgress() {
+            const progressDiv = document.querySelector('.upload-progress');
+            if (progressDiv) {
+                progressDiv.style.display = 'none';
+            }
+        }
+
+        function loadConfig() {
+            fetch('/api/config', {
+                headers: {
+                    'Authorization': `Bearer ${authToken}`
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.max_content_length) {
+                        maxContentLength = data.max_content_length;
+                        const maxSizeText = document.getElementById('max-size-text');
+                        if (maxSizeText) {
+                            maxSizeText.textContent = `Maximum file size: ${formatBytes(maxContentLength)}`;
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.warn('Failed to load config:', error);
+                    // Use default value
+                    const maxSizeText = document.getElementById('max-size-text');
+                    if (maxSizeText) {
+                        maxSizeText.textContent = `Maximum file size: ${formatBytes(maxContentLength)}`;
+                    }
+                });
+        }
+
+        function loadFiles() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('files-list').style.display = 'none';
+            document.getElementById('no-files').style.display = 'none';
+
+            fetch('/api/files')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        files = data.files;
+                        displayFiles(files);
+                        updateStats(files);
+                    } else {
+                        showNotification('Failed to load files: ' + data.error, 'error');
+                    }
+                })
+                .catch(error => {
+                    showNotification('Failed to load files: ' + error.message, 'error');
+                })
+                .finally(() => {
+                    document.getElementById('loading').style.display = 'none';
+                });
+        }
+
+        function displayFiles(files) {
+            const filesList = document.getElementById('files-list');
+            const noFiles = document.getElementById('no-files');
+            const filesCount = document.getElementById('files-count');
+
+            if (files.length === 0) {
+                noFiles.style.display = 'block';
+                filesList.style.display = 'none';
+                filesCount.textContent = 'No files';
+                return;
+            }
+
+            filesCount.textContent = `${files.length} file${files.length !== 1 ? 's' : ''}`;
+            filesList.innerHTML = files.map(file => `
+                <div class="file-item border-bottom p-3">
+                    <div class="d-flex align-items-center">
+                        <div class="file-icon bg-primary text-white">
+                            <i class="bi bi-file-earmark"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1">${file.name}</h6>
+                            <small class="text-muted">
+                                <i class="bi bi-calendar"></i> ${formatTimeAgo(file.modified)} •
+                                <i class="bi bi-hdd"></i> ${formatBytes(file.size)}
+                            </small>
+                        </div>
+                        <div class="ms-3">
+                            <a href="${file.url}" class="btn btn-outline-primary btn-sm" download>
+                                <i class="bi bi-download"></i>
+                                Download
+                            </a>
+                            ${authToken ? `
+                            <button class="btn btn-outline-danger btn-sm ms-2" onclick="deleteFile('${file.name}')">
+                                <i class="bi bi-trash"></i>
+                                Delete
+                            </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            filesList.style.display = 'block';
+            noFiles.style.display = 'none';
+        }
+
+        function updateStats(files) {
+            const totalFiles = files.length;
+            const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+            const lastUpload = files.length > 0 ? formatTimeAgo(files[0].modified) : 'Never';
+
+            document.getElementById('total-files').textContent = totalFiles.toString();
+            document.getElementById('total-size').textContent = formatBytes(totalSize);
+            document.getElementById('last-upload').textContent = lastUpload;
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        function formatTimeAgo(isoString) {
+            const date = new Date(isoString);
+            const now = new Date();
+            const seconds = Math.floor((now - date) / 1000);
+
+            if (seconds < 60) return 'just now';
+            if (seconds < 3600) return `${Math.floor(seconds / 60)} minute${Math.floor(seconds / 60) !== 1 ? 's' : ''} ago`;
+            if (seconds < 86400) return `${Math.floor(seconds / 3600)} hour${Math.floor(seconds / 3600) !== 1 ? 's' : ''} ago`;
+            if (seconds < 2592000) return `${Math.floor(seconds / 86400)} day${Math.floor(seconds / 86400) !== 1 ? 's' : ''} ago`;
+            if (seconds < 31536000) return `${Math.floor(seconds / 2592000)} month${Math.floor(seconds / 2592000) !== 1 ? 's' : ''} ago`;
+            return `${Math.floor(seconds / 31536000)} year${Math.floor(seconds / 31536000) !== 1 ? 's' : ''} ago`;
+        }
+
+        function refreshFiles() {
+            loadFiles();
+        }
+
+        function showNotification(message, type = 'info') {
+            const toast = document.getElementById('notification-toast');
+            const toastBody = toast.querySelector('.toast-body');
+            const toastIcon = toast.querySelector('.bi');
+
+            toastBody.textContent = message;
+
+            // Update icon and color based on type
+            toastIcon.className = type === 'success' ? 'bi bi-check-circle text-success me-2' :
+                                 type === 'error' ? 'bi bi-exclamation-circle text-danger me-2' :
+                                 'bi bi-info-circle text-primary me-2';
+
+            const bsToast = new bootstrap.Toast(toast);
+            bsToast.show();
+        }
+    </script>
+</body>
+</html>

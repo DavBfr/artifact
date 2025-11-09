@@ -1,0 +1,35 @@
+services:
+  artifact-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      tags:
+        - davbfr/artifact:latest
+      x-bake:
+        platforms:
+          - linux/amd64
+    image: davbfr/artifact:latest
+    container_name: artifact-server
+    volumes:
+      - ./data:/var/uploads
+    environment:
+      - ART_API_TOKEN
+      - ART_MAX_FILE_SIZE
+    restart: unless-stopped
+    ports:
+      - "9080:8080"
+    develop:
+      watch:
+        - action: rebuild
+          path: ./server
+          ignore:
+            - server/tmp/
+        - action: sync
+          path: ./static
+          target: /app/static
+        - action: rebuild
+          path: ./Dockerfile
+
+x-dockge:
+  urls:
+    - https://files.apptoimeme.fr
