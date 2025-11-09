@@ -1,17 +1,15 @@
 import 'package:jaspr/jaspr.dart';
 
-import '../models/app_state.dart';
+import '../models/api_models.dart';
 import '../utils/formatters.dart';
 
 class FilesList extends StatelessComponent {
   final List<FileInfo> files;
-  final bool isLoading;
   final bool isAuthenticated;
   final void Function(String) onDelete;
 
   const FilesList({
     required this.files,
-    required this.isLoading,
     required this.isAuthenticated,
     required this.onDelete,
     super.key,
@@ -40,19 +38,7 @@ class FilesList extends StatelessComponent {
             ],
           ),
           div(classes: 'card-body p-0', [
-            // Loading spinner
-            if (isLoading)
-              div(id: 'loading', classes: 'text-center p-4', [
-                div(
-                  classes: 'spinner-border text-primary',
-                  attributes: {'role': 'status'},
-                  [
-                    span(classes: 'visually-hidden', [text('Loading...')]),
-                  ],
-                ),
-                p(classes: 'mt-2 text-muted', [text('Loading artifacts...')]),
-              ])
-            else if (files.isEmpty)
+            if (files.isEmpty)
               // No files message
               div(id: 'no-files', classes: 'text-center p-5', [
                 i(classes: 'bi bi-inbox fs-1 text-muted', []),

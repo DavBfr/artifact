@@ -15,14 +15,11 @@ void main() {
     Document(
       title: 'Artifact Server',
       styles: [
+        css.import('styles.css'),
         // Special import rule to include to another css file.
         css.import('https://fonts.googleapis.com/css?family=Roboto'),
-        css.import(
-          'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',
-        ),
-        css.import(
-          'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css',
-        ),
+        // css.import(          'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',        ),
+        // css.import(          'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css',        ),
         // Each style rule takes a valid css selector and a set of styles.
         // Styles are defined using type-safe css bindings and can be freely chained and nested.
         css('html, body').styles(

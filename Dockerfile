@@ -19,17 +19,31 @@ COPY server/upload_server.go ./
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o upload_server .
 
-FROM ghcr.io/cirruslabs/flutter:stable AS flutter_builder
+FROM ghcr.io/cirruslabs/flutter:stable AS web_builder
 
 # Set working directory
 WORKDIR /app
 
-# Copy the web source code
-COPY web/ .
-# Get Flutter dependencies
+# Copy pubspec files
+COPY web/pubspec.yaml web/pubspec.lock* ./
+
+# Get dependencies
 RUN dart pub get
+
+# Copy the web source code
+COPY web/lib ./lib
+COPY web/web ./web
+
+# Prepare build files
+RUN dart run build_runner build --delete-conflicting-outputs
+
 # Build the web app
 RUN dart run jaspr_cli:jaspr build
+
+RUN mkdir -p /app/dist \
+    && cp -r /app/build/jaspr/*.html /app/dist/ \
+    && cp -r /app/build/jaspr/*.js /app/dist/ \
+    && cp -r /app/build/jaspr/*.svg /app/dist/
 
 # Final stage - minimal Alpine Linux
 FROM alpine:latest
@@ -47,12 +61,12 @@ WORKDIR /app
 # Copy the built Go binary from builder
 COPY --from=builder /build/upload_server /app/upload_server
 
-# Copy the built Flutter web files
-COPY --from=flutter_builder /app/build/jaspr/index.html ./static/
-COPY --from=flutter_builder /app/build/jaspr/*.js ./static/
+# Copy the built web files
+# COPY --from=web_builder /app/dist/ ./static/
+COPY ./static/ ./static/
 
 # Create uploads directory and set permissions
-RUN mkdir -p /var/uploads /app/static && \
+RUN mkdir -p /var/uploads && \
     chown -R appuser:appuser /var/uploads /app
 
 # Switch to non-root user

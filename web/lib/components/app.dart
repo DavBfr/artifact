@@ -1,8 +1,10 @@
 import 'package:jaspr/jaspr.dart';
 
-import '../models/app_state.dart';
+import '../models/api.dart';
+import '../models/api_models.dart';
 import 'auth_modal.dart';
 import 'files_list.dart';
+import 'loading.dart';
 import 'navbar.dart';
 import 'stats_card.dart';
 import 'toast.dart';
@@ -17,38 +19,45 @@ class App extends StatefulComponent {
 }
 
 class AppState extends State<App> {
+  var _api = ArtifactApiClient.base();
+  ConfigResponse? _config;
+
+  List<FileInfo>? _files;
+
   @override
   void initState() {
     super.initState();
-    // Run code depending on the rendering environment.
     if (kIsWeb) {
-      print("Hello client");
-      // When using @client components there is no default `main()` function on the client where you would normally
-      // run any client-side initialization logic. Instead you can put it here, considering this component is only
-      // mounted once at the root of your client-side component tree.
-    } else {
-      print("Hello server");
+      _load();
     }
+  }
+
+  Future<void> _load() async {
+    if (_api.isAuthenticated) {
+      try {
+        final configResponse = await _api.getConfig();
+        setState(() {
+          _config = configResponse;
+        });
+      } on ApiException {
+        setState(() {
+          _config = null;
+          _api = ArtifactApiClient.base();
+        });
+      }
+    }
+
+    final filesResponse = await _api.listFiles();
+    setState(() {
+      _files = filesResponse.files;
+    });
   }
 
   @override
   Component build(BuildContext context) {
-    final files = <FileInfo>[
-      FileInfo(
-        name: 'example1.zip',
-        size: 1500000,
-        modified: DateTime.now()
-            .subtract(Duration(minutes: 10))
-            .toIso8601String(),
-        url: 'https://example.com/example1.zip',
-      ),
-      FileInfo(
-        name: 'example2.tar.gz',
-        size: 25000000,
-        modified: DateTime.now().subtract(Duration(hours: 2)).toIso8601String(),
-        url: 'https://example.com/example2.tar.gz',
-      ),
-    ];
+    if (_files == null) {
+      return MyLoading();
+    }
 
     return div([
       // head([
@@ -76,11 +85,11 @@ class AppState extends State<App> {
       // body([
       // Navigation
       NavBar(
-        isAuthenticated: true,
+        isAuthenticated: _api.isAuthenticated,
         onAuthToggle: () {},
         onRefresh: () {
           print('Refresh');
-          ;
+          _load();
         },
       ),
 
@@ -88,24 +97,25 @@ class AppState extends State<App> {
       div(classes: 'container mt-4', [
         // Stats
         div(classes: 'row mb-4', [
-          div(classes: 'col-md-12', [StatsCard(files: files)]),
+          div(classes: 'col-md-12', [StatsCard(files: _files!)]),
         ]),
 
         // Upload Section
         UploadSection(
-          isVisible: true,
+          isVisible: _api.isAuthenticated,
           maxContentLength: 3000,
           isUploading: false,
           uploadProgress: 0,
-          onUpload: (p1) {},
+          onUpload: (file) {},
         ),
 
         // Files List
         FilesList(
-          files: files,
-          isLoading: false,
-          isAuthenticated: false,
-          onDelete: (file) {},
+          files: _files!,
+          isAuthenticated: _api.isAuthenticated,
+          onDelete: (file) {
+            _api.deleteFile(file);
+          },
         ),
       ]),
 

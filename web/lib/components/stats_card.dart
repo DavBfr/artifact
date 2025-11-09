@@ -1,6 +1,7 @@
+import 'package:deepyr/deepyr.dart';
 import 'package:jaspr/jaspr.dart';
 
-import '../models/app_state.dart';
+import '../models/api_models.dart';
 import '../utils/formatters.dart';
 
 class StatsCard extends StatelessComponent {
@@ -15,6 +16,26 @@ class StatsCard extends StatelessComponent {
     final lastUpload = files.isNotEmpty
         ? formatTimeAgo(files.first.modified)
         : 'Never';
+
+    return Stats(
+      style: [Effects.shadowSm],
+      [
+        Stat([
+          StatFigure([
+            Icon('favorite', style: [TextUtil.primary, Size.w8, Size.h8]),
+          ]),
+          StatTitle([text('Total Likes')]),
+          StatValue([text('25.6K')], style: [TextUtil.primary]),
+          StatDesc([text('21% more than last month')]),
+        ]),
+        Stat([
+          StatFigure([
+            Icon('bolt', style: [TextUtil.secondary, Size.w8, Size.h8]),
+          ]),
+          // ... more stat parts
+        ]),
+      ],
+    );
 
     return div(classes: 'card stats-card', [
       div(classes: 'card-body', [

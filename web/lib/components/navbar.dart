@@ -1,4 +1,5 @@
-import 'package:jaspr/jaspr.dart';
+import 'package:deepyr/deepyr.dart';
+import 'package:jaspr/jaspr.dart' hide Spacing;
 
 class NavBar extends StatelessComponent {
   final bool isAuthenticated;
@@ -14,10 +15,38 @@ class NavBar extends StatelessComponent {
 
   @override
   Component build(BuildContext context) {
+    return Navbar(
+      style: [BgUtil.base100, Effects.shadowSm],
+      ariaLabel: 'Navbar with title',
+      [
+        NavbarStart([
+          img(src: 'logo.svg', width: 38, height: 38),
+          text(' Artifact Server'),
+        ]),
+
+        NavbarEnd([
+          Button(
+            [text('Login')],
+            style: [Button.primary],
+            onClick: (event) {
+              onRefresh();
+            },
+          ),
+          Button(
+            [text('Refresh')],
+            style: [Button.neutral],
+            onClick: (event) {
+              onRefresh();
+            },
+          ),
+        ]),
+      ],
+    );
+
     return nav(classes: 'navbar navbar-expand-lg navbar-dark bg-dark', [
       div(classes: 'container', [
         span(classes: 'navbar-brand mb-0 h1', [
-          i(classes: 'bi bi-archive', []),
+          img(src: 'logo.svg', width: 38, height: 38),
           text(' Artifact Server'),
         ]),
         div(classes: 'navbar-nav ms-auto', [

@@ -6,6 +6,7 @@
 
 import 'package:jaspr/jaspr.dart';
 import 'package:artifact_web/components/app.dart' as prefix0;
+import 'package:deepyr/src/components/label/label.dart' as prefix1;
 
 /// Default [JasprOptions] for use with your jaspr project.
 ///
@@ -25,4 +26,5 @@ import 'package:artifact_web/components/app.dart' as prefix0;
 /// ```
 JasprOptions get defaultJasprOptions => JasprOptions(
   clients: {prefix0.App: ClientTarget<prefix0.App>('components/app')},
+  styles: () => [...prefix1.Label.styles],
 );
