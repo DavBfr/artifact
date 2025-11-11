@@ -1,18 +1,18 @@
 import 'package:jaspr/jaspr.dart';
+import 'package:universal_web/js_interop.dart';
+import 'package:universal_web/web.dart';
 
 import '../utils/formatters.dart';
 
 class UploadSection extends StatefulComponent {
-  final bool isVisible;
   final int maxContentLength;
   final bool isUploading;
   final String? uploadingFileName;
   final int uploadProgress;
-  final void Function(String) onUpload;
+  final void Function(File) onUpload;
   final String? authToken;
 
   const UploadSection({
-    required this.isVisible,
     required this.maxContentLength,
     required this.isUploading,
     this.uploadingFileName,
@@ -27,191 +27,264 @@ class UploadSection extends StatefulComponent {
 }
 
 class _UploadSectionState extends State<UploadSection> {
+  bool isDragOver = false;
+
   @override
   void initState() {
     super.initState();
-    _setupUploadHandlers();
+    Future.delayed(Duration.zero, _setupUploadHandlers);
   }
 
   void _setupUploadHandlers() {
-    // Set up handlers after the component is mounted
-    // Future.delayed(Duration.zero, () {
-    // final uploadZone = html.document.getElementById('upload-zone');
-    // final fileInput =
-    //     html.document.getElementById('file-input')
-    //         as html.FileUploadInputElement?;
-    // final selectBtn = html.document.querySelector(
-    //   '.upload-zone button.btn-primary',
-    // );
-    // final copyBtn = html.document.querySelector('.upload-zone button.btn-sm');
+    final uploadZone = document.getElementById('upload-zone');
+    final fileInput =
+        document.getElementById('file-input') as HTMLInputElement?;
 
-    // if (uploadZone != null && fileInput != null) {
-    //   // Drag and drop handlers
-    //   uploadZone.onDragOver.listen((event) {
-    //     event.preventDefault();
-    //     uploadZone.classes.add('dragover');
-    //   });
+    if (uploadZone != null && fileInput != null) {
+      // Drag and drop handlers
+      uploadZone.addEventListener('dragover', _onDragOver.toJS);
+      uploadZone.addEventListener('dragleave', _onDragLeave.toJS);
+      uploadZone.addEventListener('drop', _onDrop.toJS);
 
-    //   uploadZone.onDragLeave.listen((event) {
-    //     event.preventDefault();
-    //     uploadZone.classes.remove('dragover');
-    //   });
+      // File input change handler
+      fileInput.addEventListener('change', _onFileInputChange.toJS);
 
-    //   uploadZone.onDrop.listen((event) {
-    //     event.preventDefault();
-    //     uploadZone.classes.remove('dragover');
-    //     final files = event.dataTransfer.files;
-    //     if (files != null) {
-    //       for (var file in files) {
-    //         component.onUpload(file);
-    //       }
-    //     }
-    //   });
+      // Click zone to trigger file input
+      uploadZone.addEventListener(
+        'click',
+        ((Event event) {
+          fileInput.click();
+        }).toJS,
+      );
+    }
 
-    //   // File input handler
-    //   fileInput.onChange.listen((event) {
-    //     final files = fileInput.files;
-    //     if (files != null) {
-    //       for (var file in files) {
-    //         component.onUpload(file);
-    //       }
-    //     }
-    //   });
-    // }
+    // Copy curl command button
+    final copyBtn = document.getElementById('copy-curl-btn');
+    copyBtn?.addEventListener(
+      'click',
+      ((Event event) {
+        event.stopPropagation();
+        _copyCurlCommand();
+      }).toJS,
+    );
+  }
 
-    // Select files button
-    // selectBtn?.onClick.listen((event) {
-    //   fileInput?.click();
-    // });
+  void _onDragOver(Event event) {
+    event.preventDefault();
+    setState(() {
+      isDragOver = true;
+    });
+  }
 
-    // // Copy curl command button
-    // copyBtn?.onClick.listen((event) {
-    //   event.stopPropagation();
-    //   _copyCurlCommand();
-    // });
-    // });
+  void _onDragLeave(Event event) {
+    event.preventDefault();
+    setState(() {
+      isDragOver = false;
+    });
+  }
+
+  void _onDrop(Event event) {
+    event.preventDefault();
+    setState(() {
+      isDragOver = false;
+    });
+
+    final dragEvent = event as DragEvent;
+    final files = dragEvent.dataTransfer?.files;
+
+    if (files != null && files.length > 0) {
+      for (var i = 0; i < files.length; i++) {
+        final file = files.item(i);
+        if (file != null) {
+          component.onUpload(file);
+        }
+      }
+    }
+  }
+
+  void _onFileInputChange(Event event) {
+    final input = event.target as HTMLInputElement?;
+    final files = input?.files;
+
+    if (files != null && files.length > 0) {
+      for (var i = 0; i < files.length; i++) {
+        final file = files.item(i);
+        if (file != null) {
+          component.onUpload(file);
+        }
+      }
+    }
   }
 
   void _copyCurlCommand() {
-    // final serverUrl = html.window.location.origin;
-    // final token = component.authToken ?? '{token}';
-    // final curlCommand =
-    //     'curl --progress-bar -H \'Authorization: Bearer $token\' $serverUrl/api/upload -F \'file=@example.zip\' | cat';
+    final serverUrl = window.location.origin;
+    final token = component.authToken ?? '{token}';
+    final curlCommand =
+        'curl --progress-bar -H "Authorization: Bearer $token" $serverUrl/api/upload -F "file=@example.zip" | cat';
 
-    // html.window.navigator.clipboard?.writeText(curlCommand);
-    // _showNotification('Curl command copied to clipboard!', 'success');
+    window.navigator.clipboard.writeText(curlCommand);
+    _showNotification('Curl command copied to clipboard!');
   }
 
-  void _showNotification(String message, String type) {
-    // final toast = html.document.getElementById('notification-toast');
-    // final toastBody = toast?.querySelector('.toast-body');
-    // final toastIcon = toast?.querySelector('.bi');
+  void _showNotification(String message) {
+    // Simple notification using browser API
+    // You can implement a more sophisticated toast notification system
+    print(message);
+  }
 
-    // if (toastBody != null) {
-    //   toastBody.text = message;
-    // }
+  @override
+  void dispose() {
+    final uploadZone = document.getElementById('upload-zone');
+    final fileInput =
+        document.getElementById('file-input') as HTMLInputElement?;
 
-    // if (toastIcon != null) {
-    //   toastIcon.className = type == 'success'
-    //       ? 'bi bi-check-circle text-success me-2'
-    //       : type == 'error'
-    //       ? 'bi bi-exclamation-circle text-danger me-2'
-    //       : 'bi bi-info-circle text-primary me-2';
-    // }
+    if (uploadZone != null) {
+      uploadZone.removeEventListener('dragover', _onDragOver.toJS);
+      uploadZone.removeEventListener('dragleave', _onDragLeave.toJS);
+      uploadZone.removeEventListener('drop', _onDrop.toJS);
+    }
 
-    // if (toast != null) {
-    //   // Use dynamic approach to call Bootstrap's Toast
-    //   final dynamic toastElement = toast;
-    //   final dynamic bootstrap = html.window as dynamic;
-    //   try {
-    //     bootstrap.bootstrap?.Toast(toastElement)?.show();
-    //   } catch (e) {
-    //     // Fallback - Bootstrap might not be loaded yet
-    //     print('Failed to show toast: $e');
-    //   }
-    // }
+    if (fileInput != null) {
+      fileInput.removeEventListener('change', _onFileInputChange.toJS);
+    }
+
+    super.dispose();
   }
 
   @override
   Component build(BuildContext context) {
-    return div(
-      classes: 'row mb-4',
-      id: 'upload-section',
-      attributes: {
-        'style': component.isVisible ? 'display: block;' : 'display: none;',
-      },
-      [
-        div(classes: 'col-12', [
-          div(classes: 'card', [
-            div(classes: 'card-header', [
-              h5(classes: 'card-title mb-0', [
-                i(classes: 'bi bi-cloud-upload', []),
-                text(' Upload Artifact'),
-              ]),
-            ]),
-            div(classes: 'card-body', [
-              div(classes: 'upload-zone', id: 'upload-zone', [
-                i(classes: 'bi bi-cloud-upload fs-1 text-muted mb-3', []),
-                h5([text('Drop files here or click to browse')]),
-                p(classes: 'text-muted', id: 'max-size-text', [
-                  text(
-                    'Maximum file size: ${formatBytes(component.maxContentLength)}',
-                  ),
-                ]),
-                small(classes: 'text-muted d-block mb-2', [
-                  text('Upload via curl '),
-                  button(
-                    classes: 'btn btn-sm',
-                    attributes: {'title': 'Copy to clipboard'},
-                    [i(classes: 'bi bi-clipboard', [])],
-                  ),
-                ]),
-                input(
-                  type: InputType.file,
-                  id: 'file-input',
-                  classes: 'd-none',
-                  attributes: {'multiple': 'true'},
-                ),
-                button(classes: 'btn btn-primary', [
-                  i(classes: 'bi bi-plus-circle', []),
-                  text(' Select Files'),
+    final dragOverClass = isDragOver ? ' has-background-primary-light' : '';
+
+    return div(classes: 'box has-background-white mb-5', id: 'upload-section', [
+      // Header
+      nav(classes: 'level mb-4', [
+        div(classes: 'level-left', [
+          div(classes: 'level-item', [
+            div([
+              p(classes: 'title is-4 mb-1', [
+                span(classes: 'icon-text', [
+                  span(classes: 'icon has-text-info', [
+                    i(classes: 'fas fa-cloud-upload-alt', []),
+                  ]),
+                  span([text('Upload Artifact')]),
                 ]),
               ]),
-              // Upload Progress
-              div(
-                classes: 'upload-progress mt-3',
-                attributes: {
-                  'style': component.isUploading
-                      ? 'display: block;'
-                      : 'display: none;',
-                },
-                [
-                  div(classes: 'd-flex justify-content-between mb-2', [
-                    span(id: 'upload-filename', [
-                      text(component.uploadingFileName ?? 'Uploading...'),
-                    ]),
-                    span(id: 'upload-percentage', [
-                      text('${component.uploadProgress}%'),
-                    ]),
-                  ]),
-                  div(classes: 'progress', [
-                    div(
-                      classes:
-                          'progress-bar progress-bar-striped progress-bar-animated',
-                      id: 'upload-progress-bar',
-                      attributes: {
-                        'role': 'progressbar',
-                        'style': 'width: ${component.uploadProgress}%',
-                      },
-                      [],
-                    ),
-                  ]),
-                ],
-              ),
             ]),
           ]),
         ]),
-      ],
-    );
+        div(classes: 'level-right', [
+          div(classes: 'level-item', [
+            span(classes: 'tag is-info is-light is-medium', [
+              span(classes: 'icon', [i(classes: 'fas fa-info-circle', [])]),
+              span([text('Max: ${formatBytes(component.maxContentLength)}')]),
+            ]),
+          ]),
+        ]),
+      ]),
+
+      // Upload zone
+      div(
+        classes:
+            'box has-background-light has-text-centered p-6 is-clickable$dragOverClass',
+        id: 'upload-zone',
+        attributes: {
+          'style':
+              'border: 2px dashed #dbdbdb; border-radius: 6px; transition: all 0.3s ease;',
+        },
+        [
+          div(classes: 'mb-4', [
+            span(classes: 'icon is-large has-text-info', [
+              i(classes: 'fas fa-cloud-upload-alt fa-3x', []),
+            ]),
+          ]),
+          p(classes: 'title is-5 has-text-grey-dark mb-4', [
+            text('Drop files here or click to browse'),
+          ]),
+          p(classes: 'subtitle is-6 has-text-grey-light mb-6', [
+            text('Supports multiple file uploads'),
+          ]),
+
+          // Hidden file input
+          input(
+            type: InputType.file,
+            id: 'file-input',
+            attributes: {'multiple': 'true', 'style': 'display: none;'},
+          ),
+
+          // Curl command section
+          div(classes: 'box is-shadowless has-background-white-ter mt-4 p-3', [
+            p(classes: 'is-size-7 has-text-grey mb-2', [
+              span(classes: 'icon-text', [
+                span(classes: 'icon is-small', [
+                  i(classes: 'fas fa-terminal', []),
+                ]),
+                span([text('Upload via curl command')]),
+              ]),
+            ]),
+            div(classes: 'field has-addons', [
+              div(classes: 'control is-expanded', [
+                input(
+                  type: InputType.text,
+                  classes: 'input is-small is-family-monospace',
+                  attributes: {
+                    'value':
+                        'curl -H "Authorization: Bearer {token}" ... -F "file=@example.zip"',
+                    'readonly': 'true',
+                  },
+                ),
+              ]),
+              div(classes: 'control', [
+                button(
+                  classes: 'button is-info is-small',
+                  id: 'copy-curl-btn',
+                  attributes: {'title': 'Copy to clipboard'},
+                  [
+                    span(classes: 'icon is-small', [
+                      i(classes: 'fas fa-clipboard', []),
+                    ]),
+                  ],
+                ),
+              ]),
+            ]),
+          ]),
+        ],
+      ),
+
+      // Upload Progress
+      if (component.isUploading)
+        div(classes: 'box is-shadowless has-background-light mt-4', [
+          div(classes: 'mb-3', [
+            nav(classes: 'level is-mobile', [
+              div(classes: 'level-left', [
+                div(classes: 'level-item', [
+                  p(classes: 'subtitle is-6 has-text-weight-semibold', [
+                    span(classes: 'icon-text', [
+                      span(classes: 'icon has-text-info', [
+                        i(classes: 'fas fa-spinner fa-pulse', []),
+                      ]),
+                      span(id: 'upload-filename', [
+                        text(component.uploadingFileName ?? 'Uploading...'),
+                      ]),
+                    ]),
+                  ]),
+                ]),
+              ]),
+              div(classes: 'level-right', [
+                div(classes: 'level-item', [
+                  span(classes: 'tag is-info', id: 'upload-percentage', [
+                    text('${component.uploadProgress}%'),
+                  ]),
+                ]),
+              ]),
+            ]),
+          ]),
+          progress(
+            classes: 'progress is-info',
+            id: 'upload-progress-bar',
+            attributes: {'value': '${component.uploadProgress}', 'max': '100'},
+            [text('${component.uploadProgress}%')],
+          ),
+        ]),
+    ]);
   }
 }

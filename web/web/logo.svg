@@ -1,65 +1,42 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
-  <defs>
-    <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
-    </linearGradient>
-    <linearGradient id="gradient2" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#f093fb;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#f5576c;stop-opacity:1" />
-    </linearGradient>
-  </defs>
-  
-  <!-- Background circle -->
-  <circle cx="100" cy="100" r="95" fill="url(#gradient1)" opacity="0.1"/>
-  
-  <!-- Main archive box -->
-  <g transform="translate(100, 100)">
-    <!-- Box back panel -->
-    <path d="M -40 -25 L -40 35 L 40 35 L 40 -25 Z" 
-          fill="url(#gradient1)" 
-          opacity="0.8"/>
-    
-    <!-- Box front panel -->
-    <path d="M -45 -30 L -45 30 L 45 30 L 45 -30 Z" 
-          fill="url(#gradient1)"/>
-    
-    <!-- Box lid -->
-    <path d="M -48 -30 L -45 -35 L 45 -35 L 48 -30 Z" 
-          fill="url(#gradient2)"/>
-    
-    <!-- Archive lines decoration -->
-    <line x1="-35" y1="-15" x2="35" y2="-15" 
-          stroke="white" stroke-width="2" opacity="0.6"/>
-    <line x1="-35" y1="-5" x2="35" y2="-5" 
-          stroke="white" stroke-width="2" opacity="0.6"/>
-    <line x1="-35" y1="5" x2="35" y2="5" 
-          stroke="white" stroke-width="2" opacity="0.6"/>
-    <line x1="-35" y1="15" x2="20" y2="15" 
-          stroke="white" stroke-width="2" opacity="0.6"/>
-    
-    <!-- Upload arrow -->
-    <g transform="translate(0, -55)">
-      <!-- Arrow shaft -->
-      <rect x="-3" y="0" width="6" height="25" 
-            fill="url(#gradient2)" rx="3"/>
-      <!-- Arrow head -->
-      <path d="M -12 15 L 0 0 L 12 15 Z" 
-            fill="url(#gradient2)"/>
-    </g>
-    
-    <!-- Cloud dots for upload -->
-    <circle cx="-25" cy="-50" r="3" fill="url(#gradient2)" opacity="0.7"/>
-    <circle cx="25" cy="-50" r="3" fill="url(#gradient2)" opacity="0.7"/>
-    <circle cx="-15" cy="-58" r="2.5" fill="url(#gradient2)" opacity="0.5"/>
-    <circle cx="15" cy="-58" r="2.5" fill="url(#gradient2)" opacity="0.5"/>
-  </g>
-  
-  <!-- Optional: Add text below -->
-  <text x="100" y="170" 
-        font-family="Arial, sans-serif" 
-        font-size="18" 
-        font-weight="bold" 
-        fill="url(#gradient1)" 
-        text-anchor="middle">ARTIFACT</text>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 24 24"
+   version="1.1"
+   id="svg1"
+   sodipodi:docname="logo.svg"
+   inkscape:version="1.4.2 (ebf0e940, 2025-05-08)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1" />
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#999999"
+     borderopacity="1"
+     inkscape:showpageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     showgrid="false"
+     inkscape:zoom="40.583333"
+     inkscape:cx="12"
+     inkscape:cy="12"
+     inkscape:window-width="1848"
+     inkscape:window-height="1259"
+     inkscape:window-x="2514"
+     inkscape:window-y="472"
+     inkscape:window-maximized="0"
+     inkscape:current-layer="svg1" />
+  <path
+     d="M 12,2 C 17.5,2 22,6.5 22,12 22,17.5 17.5,22 12,22 6.5,22 2,17.5 2,12 2,6.5 6.5,2 12,2 m 0,2 c -4.42,0 -8,3.58 -8,8 0,4.42 3.58,8 8,8 4.42,0 8,-3.58 8,-8 0,-4.42 -3.58,-8 -8,-8 z"
+     id="path1"
+     sodipodi:nodetypes="cssscsssss"
+     style="fill:#3094ce;fill-opacity:1" />
+  <path
+     d="M 7.9999996,17 V 15 H 16 v 2 H 7.9999996 M 16,10 12,6 7.9999996,10 H 10.5 v 4 h 3 V 10 H 16"
+     id="path1-8"
+     style="fill:#9a30ce;fill-opacity:1" />
 </svg>

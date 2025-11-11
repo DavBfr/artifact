@@ -4,20 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Artifact Server</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     <style>
         body {
-            background-color: #f8f9fa;
-        }
-
-        .navbar-brand {
-            font-weight: 600;
+            background-color: #f5f5f5;
         }
 
         .upload-zone {
-            border: 2px dashed #dee2e6;
-            border-radius: 8px;
+            border: 2px dashed #dbdbdb;
+            border-radius: 6px;
             padding: 40px;
             text-align: center;
             transition: all 0.3s ease;
@@ -25,8 +21,8 @@
         }
 
         .upload-zone.dragover {
-            border-color: #0d6efd;
-            background-color: #e7f3ff;
+            border-color: #3273dc;
+            background-color: #eff5fb;
         }
 
         .file-icon {
@@ -35,7 +31,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            border-radius: 8px;
+            border-radius: 6px;
             margin-right: 16px;
         }
 
@@ -51,95 +47,141 @@
         .refresh-btn:hover {
             transform: rotate(180deg);
         }
+
+        .file-item {
+            padding: 1rem;
+            border-bottom: 1px solid #dbdbdb;
+        }
+
+        .file-item:last-child {
+            border-bottom: none;
+        }
+
+        .is-hidden {
+            display: none !important;
+        }
+
+        .modal {
+            display: none;
+        }
+
+        .modal.is-active {
+            display: flex;
+        }
+
+        .notification-container {
+            position: fixed;
+            bottom: 1rem;
+            right: 1rem;
+            z-index: 1000;
+            max-width: 400px;
+        }
+
+        .upload-progress {
+            margin-top: 1rem;
+        }
     </style>
 </head>
 <body>
     <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <nav class="navbar is-dark" role="navigation" aria-label="main navigation">
         <div class="container">
-            <span class="navbar-brand mb-0 h1">
-                <i class="bi bi-archive"></i>
-                Artifact Server
-            </span>
-            <div class="navbar-nav ms-auto">
-                <button class="btn btn-outline-light me-2" onclick="toggleAuth()" id="auth-btn" style="display: none;">
-                    <i class="bi bi-key"></i>
-                    <span id="auth-btn-text">Login</span>
-                </button>
-                <button class="btn btn-outline-light" onclick="refreshFiles()">
-                    <i class="bi bi-arrow-clockwise refresh-btn"></i>
-                    Refresh
-                </button>
+            <div class="navbar-brand">
+                <span class="navbar-item is-size-4 has-text-weight-semibold">
+                    <i class="bi bi-archive"></i>
+                    <span class="ml-2">Artifact Server</span>
+                </span>
+            </div>
+            <div class="navbar-menu">
+                <div class="navbar-end">
+                    <div class="navbar-item">
+                        <div class="buttons">
+                            <button class="button is-light is-outlined" onclick="toggleAuth()" id="auth-btn" style="display: none;">
+                                <span class="icon">
+                                    <i class="bi bi-key"></i>
+                                </span>
+                                <span id="auth-btn-text">Login</span>
+                            </button>
+                            <button class="button is-light is-outlined" onclick="refreshFiles()">
+                                <span class="icon">
+                                    <i class="bi bi-arrow-clockwise refresh-btn"></i>
+                                </span>
+                                <span>Refresh</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </nav>
 
-    <div class="container mt-4">
+    <div class="container mt-5">
         <!-- Stats -->
-        <div class="row mb-4">
-            <div class="col-md-12">
+        <div class="columns mb-5">
+            <div class="column">
                 <div class="card stats-card">
-                    <div class="card-body">
-                        <div class="row text-center">
-                            <div class="col-md-4">
-                                <h4 id="total-files">-</h4>
-                                <p class="mb-0">Total Files</p>
+                    <div class="card-content">
+                        <div class="columns has-text-centered">
+                            <div class="column">
+                                <p class="title has-text-white" id="total-files">-</p>
+                                <p class="subtitle has-text-white">Total Files</p>
                             </div>
-                            <div class="col-md-4">
-                                <h4 id="total-size">-</h4>
-                                <p class="mb-0">Total Size</p>
+                            <div class="column">
+                                <p class="title has-text-white" id="total-size">-</p>
+                                <p class="subtitle has-text-white">Total Size</p>
                             </div>
-                            <div class="col-md-4">
-                                <h4 id="last-upload">-</h4>
-                                <p class="mb-0">Last Upload</p>
+                            <div class="column">
+                                <p class="title has-text-white" id="last-upload">-</p>
+                                <p class="subtitle has-text-white">Last Upload</p>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-
         <!-- Upload Section (only shown when authenticated) -->
-        <div class="row mb-4" id="upload-section" style="display: none;">
-            <div class="col-12">
+        <div class="columns mb-5" id="upload-section" style="display: none;">
+            <div class="column">
                 <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">
-                            <i class="bi bi-cloud-upload"></i>
-                            Upload Artifact
-                        </h5>
-                    </div>
-                    <div class="card-body">
+                    <header class="card-header">
+                        <p class="card-header-title">
+                            <span class="icon">
+                                <i class="bi bi-cloud-upload"></i>
+                            </span>
+                            <span class="ml-2">Upload Artifact</span>
+                        </p>
+                    </header>
+                    <div class="card-content">
                         <div class="upload-zone" id="upload-zone">
-                            <i class="bi bi-cloud-upload fs-1 text-muted mb-3"></i>
-                            <h5>Drop files here</h5>
-                            <p class="text-muted" id="max-size-text">Maximum file size:</p>
-                            <small class="text-muted d-block mb-2">
+                            <p class="is-size-1 has-text-grey-light mb-3">
+                                <i class="bi bi-cloud-upload"></i>
+                            </p>
+                            <p class="title is-5">Drop files here</p>
+                            <p class="has-text-grey" id="max-size-text">Maximum file size:</p>
+                            <p class="is-size-7 has-text-grey mb-2">
                                 Upload via curl
-                                <button class="btn btn-sm" onclick="copyCurlCommand(event)" title="Copy to clipboard">
-                                    <i class="bi bi-clipboard"></i>
+                                <button class="button is-small is-white" onclick="copyCurlCommand(event)" title="Copy to clipboard">
+                                    <span class="icon is-small">
+                                        <i class="bi bi-clipboard"></i>
+                                    </span>
                                 </button>
-                            </small>
-                            <input type="file" id="file-input" class="d-none" multiple>
-                            <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">
-                                <i class="bi bi-plus-circle"></i>
-                                Select Files
+                            </p>
+                            <input type="file" id="file-input" class="is-hidden" multiple>
+                            <button class="button is-primary" onclick="document.getElementById('file-input').click()">
+                                <span class="icon">
+                                    <i class="bi bi-plus-circle"></i>
+                                </span>
+                                <span>Select Files</span>
                             </button>
                         </div>
 
                         <!-- Upload Progress -->
-                        <div class="upload-progress mt-3" style="display: none;">
-                            <div class="d-flex justify-content-between mb-2">
+                        <div class="upload-progress" style="display: none;">
+                            <div class="is-flex is-justify-content-space-between mb-2">
                                 <span id="upload-filename">Uploading...</span>
                                 <span id="upload-percentage">0%</span>
                             </div>
-                            <div class="progress">
-                                <div class="progress-bar progress-bar-striped progress-bar-animated"
-                                     id="upload-progress-bar"
-                                     role="progressbar"
-                                     style="width: 0%">
-                                </div>
-                            </div>
+                            <progress class="progress is-primary" id="upload-progress-bar" value="0" max="100">0%</progress>
                         </div>
                     </div>
                 </div>
@@ -147,32 +189,36 @@
         </div>
 
         <!-- Files List -->
-        <div class="row">
-            <div class="col-12">
+        <div class="columns">
+            <div class="column">
                 <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="card-title mb-0">
-                            <i class="bi bi-files"></i>
-                            Artifacts
-                        </h5>
-                        <small class="text-muted" id="files-count">Loading...</small>
-                    </div>
-                    <div class="card-body p-0">
-                        <div id="loading" class="text-center p-4">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                            <p class="mt-2 text-muted">Loading artifacts...</p>
+                    <header class="card-header">
+                        <p class="card-header-title">
+                            <span class="icon">
+                                <i class="bi bi-files"></i>
+                            </span>
+                            <span class="ml-2">Artifacts</span>
+                        </p>
+                        <p class="card-header-icon">
+                            <span class="has-text-grey" id="files-count">Loading...</span>
+                        </p>
+                    </header>
+                    <div class="card-content p-0">
+                        <div id="loading" class="has-text-centered p-5">
+                            <button class="button is-loading is-primary is-large is-text"></button>
+                            <p class="mt-3 has-text-grey">Loading artifacts...</p>
                         </div>
 
                         <div id="files-list" style="display: none;">
                             <!-- Files will be populated here -->
                         </div>
 
-                        <div id="no-files" class="text-center p-5" style="display: none;">
-                            <i class="bi bi-inbox fs-1 text-muted"></i>
-                            <h5 class="mt-3 text-muted">No artifacts uploaded yet</h5>
-                            <p class="text-muted">Use the API with authentication token to upload artifacts.</p>
+                        <div id="no-files" class="has-text-centered p-6" style="display: none;">
+                            <p class="is-size-1 has-text-grey-light">
+                                <i class="bi bi-inbox"></i>
+                            </p>
+                            <p class="title is-5 mt-4 has-text-grey">No artifacts uploaded yet</p>
+                            <p class="has-text-grey">Use the API with authentication token to upload artifacts.</p>
                         </div>
                     </div>
                 </div>
@@ -181,42 +227,33 @@
     </div>
 
     <!-- Authentication Modal -->
-    <div class="modal fade" id="authModal" tabindex="-1" aria-labelledby="authModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="authModalLabel">Authentication</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="auth-token" class="form-label">API Token</label>
-                        <input type="password" class="form-control" id="auth-token" placeholder="Enter your API token">
+    <div class="modal" id="authModal">
+        <div class="modal-background"></div>
+        <div class="modal-card">
+            <header class="modal-card-head">
+                <p class="modal-card-title">Authentication</p>
+                <button class="delete" aria-label="close" onclick="closeAuthModal()"></button>
+            </header>
+            <section class="modal-card-body">
+                <div class="field">
+                    <label class="label" for="auth-token">API Token</label>
+                    <div class="control">
+                        <input class="input" type="password" id="auth-token" placeholder="Enter your API token">
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="login()">Login</button>
-                </div>
-            </div>
+            </section>
+            <footer class="modal-card-foot">
+                <button class="button is-primary" onclick="login()">Login</button>
+                <button class="button" onclick="closeAuthModal()">Cancel</button>
+            </footer>
         </div>
     </div>
 
     <!-- Toast notifications -->
-    <div class="toast-container position-fixed bottom-0 end-0 p-3">
-        <div id="notification-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
-            <div class="toast-header">
-                <i class="bi bi-info-circle text-primary me-2"></i>
-                <strong class="me-auto">Notification</strong>
-                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
-            </div>
-            <div class="toast-body">
-                <!-- Message will be inserted here -->
-            </div>
-        </div>
+    <div class="notification-container" id="notification-container">
+        <!-- Notifications will be inserted here -->
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let files = [];
         let authToken = localStorage.getItem('authToken');
@@ -263,12 +300,12 @@
             const uploadSection = document.getElementById('upload-section');
 
             if (authToken) {
-                authBtn.className = 'btn btn-outline-success me-2';
+                authBtn.className = 'button is-success is-outlined';
                 authBtnText.textContent = 'Logout';
-                authBtn.style.display = 'inline-block'; // Always show when authenticated
+                authBtn.style.display = 'inline-flex'; // Always show when authenticated
                 uploadSection.style.display = 'block';
             } else {
-                authBtn.className = 'btn btn-outline-light me-2';
+                authBtn.className = 'button is-light is-outlined';
                 authBtnText.textContent = 'Login';
                 authBtn.style.display = 'none'; // Hide when not authenticated
                 uploadSection.style.display = 'none';
@@ -279,9 +316,14 @@
             if (authToken) {
                 logout();
             } else {
-                const modal = new bootstrap.Modal(document.getElementById('authModal'));
-                modal.show();
+                const modal = document.getElementById('authModal');
+                modal.classList.add('is-active');
             }
+        }
+
+        function closeAuthModal() {
+            const modal = document.getElementById('authModal');
+            modal.classList.remove('is-active');
         }
 
         function login() {
@@ -289,7 +331,7 @@
             const token = tokenInput.value.trim();
 
             if (!token) {
-                showNotification('Please enter a token', 'error');
+                showNotification('Please enter a token', 'danger');
                 return;
             }
 
@@ -297,8 +339,7 @@
             localStorage.setItem('authToken', token);
             updateAuthUI();
 
-            const modal = bootstrap.Modal.getInstance(document.getElementById('authModal'));
-            modal.hide();
+            closeAuthModal();
             tokenInput.value = '';
 
             showNotification('Logged in successfully', 'success');
@@ -365,7 +406,7 @@
 
         function uploadFile(file) {
             if (!authToken) {
-                showNotification('Please login first', 'error');
+                showNotification('Please login first', 'danger');
                 return;
             }
 
@@ -387,18 +428,18 @@
                     showNotification('File uploaded successfully: ' + data.file.name, 'success');
                     loadFiles(); // Refresh file list
                 } else {
-                    showNotification('Upload failed: ' + data.error, 'error');
+                    showNotification('Upload failed: ' + data.error, 'danger');
                 }
             })
             .catch(error => {
                 hideUploadProgress();
-                showNotification('Upload failed: ' + error.message, 'error');
+                showNotification('Upload failed: ' + error.message, 'danger');
             });
         }
 
         function deleteFile(filename) {
             if (!authToken) {
-                showNotification('Please login first', 'error');
+                showNotification('Please login first', 'danger');
                 return;
             }
 
@@ -418,11 +459,11 @@
                     showNotification('File deleted successfully', 'success');
                     loadFiles(); // Refresh file list
                 } else {
-                    showNotification('Delete failed: ' + data.error, 'error');
+                    showNotification('Delete failed: ' + data.error, 'danger');
                 }
             })
             .catch(error => {
-                showNotification('Delete failed: ' + error.message, 'error');
+                showNotification('Delete failed: ' + error.message, 'danger');
             });
         }
 
@@ -432,7 +473,7 @@
                 progressDiv.style.display = 'block';
                 document.getElementById('upload-filename').textContent = filename;
                 document.getElementById('upload-percentage').textContent = '0%';
-                document.getElementById('upload-progress-bar').style.width = '0%';
+                document.getElementById('upload-progress-bar').value = 0;
             }
         }
 
@@ -482,11 +523,11 @@
                         displayFiles(files);
                         updateStats(files);
                     } else {
-                        showNotification('Failed to load files: ' + data.error, 'error');
+                        showNotification('Failed to load files: ' + data.error, 'danger');
                     }
                 })
                 .catch(error => {
-                    showNotification('Failed to load files: ' + error.message, 'error');
+                    showNotification('Failed to load files: ' + error.message, 'danger');
                 })
                 .finally(() => {
                     document.getElementById('loading').style.display = 'none';
@@ -507,27 +548,31 @@
 
             filesCount.textContent = `${files.length} file${files.length !== 1 ? 's' : ''}`;
             filesList.innerHTML = files.map(file => `
-                <div class="file-item border-bottom p-3">
-                    <div class="d-flex align-items-center">
-                        <div class="file-icon bg-primary text-white">
+                <div class="file-item">
+                    <div class="is-flex is-align-items-center">
+                        <div class="file-icon has-background-primary has-text-white">
                             <i class="bi bi-file-earmark"></i>
                         </div>
-                        <div class="flex-grow-1">
-                            <h6 class="mb-1">${file.name}</h6>
-                            <small class="text-muted">
-                                <i class="bi bi-calendar"></i> ${formatTimeAgo(file.modified)} •
-                                <i class="bi bi-hdd"></i> ${formatBytes(file.size)}
-                            </small>
+                        <div class="is-flex-grow-1">
+                            <p class="has-text-weight-semibold mb-1">${file.name}</p>
+                            <p class="is-size-7 has-text-grey">
+                                <span class="icon is-small"><i class="bi bi-calendar"></i></span> ${formatTimeAgo(file.modified)} •
+                                <span class="icon is-small"><i class="bi bi-hdd"></i></span> ${formatBytes(file.size)}
+                            </p>
                         </div>
-                        <div class="ms-3">
-                            <a href="${file.url}" class="btn btn-outline-primary btn-sm" download>
-                                <i class="bi bi-download"></i>
-                                Download
+                        <div class="buttons ml-3">
+                            <a href="${file.url}" class="button is-primary is-outlined is-small" download>
+                                <span class="icon is-small">
+                                    <i class="bi bi-download"></i>
+                                </span>
+                                <span>Download</span>
                             </a>
                             ${authToken ? `
-                            <button class="btn btn-outline-danger btn-sm ms-2" onclick="deleteFile('${file.name}')">
-                                <i class="bi bi-trash"></i>
-                                Delete
+                            <button class="button is-danger is-outlined is-small" onclick="deleteFile('${file.name}')">
+                                <span class="icon is-small">
+                                    <i class="bi bi-trash"></i>
+                                </span>
+                                <span>Delete</span>
                             </button>
                             ` : ''}
                         </div>
@@ -575,19 +620,21 @@
         }
 
         function showNotification(message, type = 'info') {
-            const toast = document.getElementById('notification-toast');
-            const toastBody = toast.querySelector('.toast-body');
-            const toastIcon = toast.querySelector('.bi');
-
-            toastBody.textContent = message;
-
-            // Update icon and color based on type
-            toastIcon.className = type === 'success' ? 'bi bi-check-circle text-success me-2' :
-                                 type === 'error' ? 'bi bi-exclamation-circle text-danger me-2' :
-                                 'bi bi-info-circle text-primary me-2';
-
-            const bsToast = new bootstrap.Toast(toast);
-            bsToast.show();
+            const container = document.getElementById('notification-container');
+            
+            const notificationEl = document.createElement('div');
+            notificationEl.className = `notification is-${type}`;
+            notificationEl.innerHTML = `
+                <button class="delete" onclick="this.parentElement.remove()"></button>
+                ${message}
+            `;
+            
+            container.appendChild(notificationEl);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                notificationEl.remove();
+            }, 5000);
         }
     </script>
 </body>

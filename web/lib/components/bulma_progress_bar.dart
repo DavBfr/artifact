@@ -1,0 +1,31 @@
+import 'package:jaspr/jaspr.dart' hide Color;
+
+import 'bulma_colors.dart';
+
+/// Bulma Progress Bar Component
+/// Supports a limited subset of the available options
+/// See https://bulma.io/documentation/elements/progress/ for a detailed description
+class BulmaProgressBar extends StatelessComponent {
+  const BulmaProgressBar({
+    this.child,
+    this.value,
+    this.max = 100,
+    this.color,
+    super.key,
+  });
+
+  final Component? child;
+  final double? value;
+  final double max;
+  final BulmaColor? color;
+
+  @override
+  Component build(BuildContext context) {
+    return progress(
+      classes: 'progress ${color != null ? ' is-${color!.name}' : ''}',
+      value: value,
+      max: max,
+      [if (child != null) child!],
+    );
+  }
+}

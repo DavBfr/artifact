@@ -21,76 +21,124 @@ class FilesList extends StatelessComponent {
         ? 'No files'
         : '${files.length} file${files.length != 1 ? 's' : ''}';
 
-    return div(classes: 'row', [
-      div(classes: 'col-12', [
-        div(classes: 'card', [
-          div(
-            classes:
-                'card-header d-flex justify-content-between align-items-center',
-            [
-              h5(classes: 'card-title mb-0', [
-                i(classes: 'bi bi-files', []),
-                text(' Artifacts'),
-              ]),
-              small(classes: 'text-muted', id: 'files-count', [
-                text(filesCount),
-              ]),
-            ],
-          ),
-          div(classes: 'card-body p-0', [
-            if (files.isEmpty)
-              // No files message
-              div(id: 'no-files', classes: 'text-center p-5', [
-                i(classes: 'bi bi-inbox fs-1 text-muted', []),
-                h5(classes: 'mt-3 text-muted', [
-                  text('No artifacts uploaded yet'),
+    return div(classes: 'has-background-white', [
+      // Header with title and count
+      nav(classes: 'level mb-4', [
+        div(classes: 'level-left', [
+          div(classes: 'level-item', [
+            div([
+              p(classes: 'title is-4 mb-1', [
+                span(classes: 'icon-text', [
+                  span(classes: 'icon has-text-primary', [
+                    i(classes: 'fas fa-folder-open', []),
+                  ]),
+                  span([text('Artifacts')]),
                 ]),
-                p(classes: 'text-muted', [
-                  text(
-                    'Use the API with authentication token to upload artifacts.',
-                  ),
-                ]),
-              ])
-            else
-              // Files list
-              div(
-                id: 'files-list',
-                files.map((file) => _buildFileItem(file)).toList(),
-              ),
+              ]),
+            ]),
+          ]),
+        ]),
+        div(classes: 'level-right', [
+          div(classes: 'level-item', [
+            span(classes: 'tag is-medium', id: 'files-count', [
+              text(filesCount),
+            ]),
           ]),
         ]),
       ]),
+
+      div(classes: 'mb-4', [div(classes: 'is-divider', [])]),
+
+      // Files content
+      if (files.isEmpty)
+        // No files message - improved empty state
+        div(id: 'no-files', classes: 'has-text-centered py-6', [
+          div(classes: 'mb-5', [
+            span(classes: 'icon is-large has-text-grey-lighter', [
+              i(classes: 'fas fa-inbox fa-4x', []),
+            ]),
+          ]),
+          p(classes: 'title is-4 has-text-grey-dark mb-3', [
+            text('No artifacts uploaded yet'),
+          ]),
+          p(classes: 'subtitle is-6 has-text-grey mb-4', [
+            text('Upload your first artifact using the API'),
+          ]),
+          div(classes: 'content is-small has-text-grey', [
+            p([
+              text(
+                'Use the authentication token to upload files via the API endpoint.',
+              ),
+            ]),
+          ]),
+        ])
+      else
+        // Files list with better spacing
+        div(
+          id: 'files-list',
+          classes: 'files-container',
+          files.map((file) => _buildFileItem(file)).toList(),
+        ),
     ]);
   }
 
   Component _buildFileItem(FileInfo file) {
-    return div(classes: 'file-item border-bottom p-3', [
-      div(classes: 'd-flex align-items-center', [
-        div(classes: 'file-icon bg-primary text-white', [
-          i(classes: 'bi bi-file-earmark', []),
-        ]),
-        div(classes: 'flex-grow-1', [
-          h6(classes: 'mb-1', [text(file.name)]),
-          small(classes: 'text-muted', [
-            i(classes: 'bi bi-calendar', []),
-            text(' ${formatTimeAgo(file.modified)} • '),
-            i(classes: 'bi bi-hdd', []),
-            text(' ${formatBytes(file.size)}'),
-          ]),
-        ]),
-        div(classes: 'ms-3', [
-          a(
-            href: file.url,
-            classes: 'btn btn-outline-primary btn-sm',
-            attributes: {'download': ''},
-            [i(classes: 'bi bi-download', []), text(' Download')],
-          ),
-          if (isAuthenticated)
-            button(
-              classes: 'btn btn-outline-danger btn-sm ms-2',
-              events: {'click': (_) => onDelete(file.name)},
-              [i(classes: 'bi bi-trash', []), text(' Delete')],
+    return div(classes: 'mb-3', [
+      div(classes: 'box is-shadowless has-background-light', [
+        article(classes: 'media', [
+          // File icon with better styling
+          figure(classes: 'media-left', [
+            span(
+              classes:
+                  'icon is-large has-text-white has-background-primary is-rounded p-4',
+              [i(classes: 'fas fa-file-alt fa-2x', [])],
             ),
+          ]),
+
+          // File info with improved typography
+          div(classes: 'media-content', [
+            div(classes: 'content', [
+              p(classes: 'mb-2', [
+                strong(classes: 'is-size-5 has-text-dark', [text(file.name)]),
+              ]),
+              p(classes: 'mb-0', [
+                span(classes: 'icon-text is-small has-text-grey', [
+                  span(classes: 'icon', [i(classes: 'fas fa-clock', [])]),
+                  span(classes: 'mr-3', [
+                    text('${formatTimeAgo(file.modified)}'),
+                  ]),
+                ]),
+                span(classes: 'icon-text is-small has-text-grey', [
+                  span(classes: 'icon', [i(classes: 'fas fa-hdd', [])]),
+                  span([text('${formatBytes(file.size)}')]),
+                ]),
+              ]),
+            ]),
+          ]),
+
+          // Action buttons with better styling
+          div(classes: 'media-right', [
+            div(classes: 'buttons are-small', [
+              a(
+                href: file.url,
+                classes: 'button is-primary is-light',
+                attributes: {'download': ''},
+                [
+                  span(classes: 'icon', [i(classes: 'fas fa-download', [])]),
+                  span([text('Download')]),
+                ],
+              ),
+              if (isAuthenticated)
+                button(
+                  classes: 'button is-danger is-light',
+                  onClick: () => onDelete(file.name),
+                  [
+                    span(classes: 'icon', [i(classes: 'fas fa-trash-alt', [])]),
+                    span([text('Delete')]),
+                  ],
+                ),
+            ]),
+          ]),
         ]),
       ]),
     ]);
