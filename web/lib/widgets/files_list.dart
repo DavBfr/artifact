@@ -30,6 +30,52 @@ class _FilesListState extends State<FilesList> {
         .toList();
   }
 
+  String _getFileIcon(String fileName, String mimeType) {
+    final extension = fileName.split('.').last.toLowerCase();
+
+    // Icon mapping based on file extension and mime type
+    if (mimeType.startsWith('image/')) return 'fas fa-file-image';
+    if (mimeType.startsWith('video/')) return 'fas fa-file-video';
+    if (mimeType.startsWith('audio/')) return 'fas fa-file-audio';
+    if (mimeType == 'application/pdf') return 'fas fa-file-pdf';
+    if (mimeType.startsWith('text/') || extension == 'txt') {
+      return 'fas fa-file-alt';
+    }
+    if (extension == 'doc' || extension == 'docx') return 'fas fa-file-word';
+    if (extension == 'xls' || extension == 'xlsx') return 'fas fa-file-excel';
+    if (extension == 'ppt' || extension == 'pptx') {
+      return 'fas fa-file-powerpoint';
+    }
+    if (extension == 'zip' ||
+        extension == 'rar' ||
+        extension == '7z' ||
+        extension == 'deb' ||
+        extension == 'rpm') {
+      return 'fas fa-file-archive';
+    }
+    if (extension == 'json' ||
+        extension == 'html' ||
+        extension == 'htm' ||
+        extension == 'css' ||
+        extension == 'js' ||
+        extension == 'dart')
+      return 'fas fa-file-code';
+
+    if (extension == 'exe' ||
+        extension == 'bin' ||
+        extension == 'dll' ||
+        extension == 'so' ||
+        extension == 'msi') {
+      return 'fas fa-window-maximize';
+    }
+    if (extension == 'iso') {
+      return 'fas fa-compact-disc';
+    }
+
+    // Default file icon
+    return 'fas fa-file';
+  }
+
   @override
   Component build(BuildContext context) {
     final filesCount = component.files.isEmpty
@@ -117,9 +163,18 @@ class _FilesListState extends State<FilesList> {
                         },
                         classes: 'mr-3',
                       )
-                    : span(classes: 'panel-icon', [
-                        i(classes: 'fas fa-file', []),
-                      ]),
+                    : span(
+                        classes: 'panel-icon mr-4',
+                        attributes: {
+                          'style': 'font-size: 40px; margin-left:4px;',
+                        },
+                        [
+                          i(
+                            classes: _getFileIcon(file.name, file.mimeType),
+                            [],
+                          ),
+                        ],
+                      ),
                 // File main column: name and small metadata stacked
                 div([
                   div([text(file.name)]),
