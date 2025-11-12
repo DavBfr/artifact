@@ -3,18 +3,34 @@ import 'dart:async';
 import 'package:jaspr/jaspr.dart';
 
 /// Internal wrapper for dialogs with unique IDs
-class _DialogItem<T> {
-  final int id;
-  final Component child;
-  final void Function([T? value]) onComplete;
-  final bool isDismissible;
-
+class _DialogItem<T> extends StatelessComponent {
   const _DialogItem({
     required this.id,
     required this.child,
     required this.onComplete,
     required this.isDismissible,
   });
+
+  final int id;
+  final Component child;
+  final void Function([T? value]) onComplete;
+  final bool isDismissible;
+
+  @override
+  Component build(BuildContext context) {
+    return div(classes: 'modal is-active', [
+      div(
+        classes: 'modal-background',
+        events: isDismissible ? {'click': (_) => onComplete()} : {},
+        [],
+      ),
+      div(
+        classes: 'modal-card',
+        attributes: {'style': 'width: 90%; max-width: 540px;'},
+        [child],
+      ),
+    ]);
+  }
 }
 
 /// Dialog Manager - similar to Flutter's dialog system
@@ -56,7 +72,7 @@ class DialogManagerState extends State<DialogManagerProvider> {
   Future<T?> showDialog<T>(
     Component Function(void Function([T? value]) onComplete) build, {
     bool isDismissible = true,
-  }) {
+  }) async {
     final id = _nextId++;
     final completer = Completer<T?>();
     void onComplete([T? value]) {
@@ -79,6 +95,7 @@ class DialogManagerState extends State<DialogManagerProvider> {
 
   /// Hide a specific dialog by ID
   void _hideDialog(int id) {
+    if (!mounted) return;
     setState(() {
       _dialogs.removeWhere((item) => item.id == id);
     });
@@ -90,46 +107,9 @@ class DialogManagerState extends State<DialogManagerProvider> {
       state: this,
       child: div(
         attributes: {'style': 'position: relative'},
-        [
-          component.child,
-          for (final item in _dialogs)
-            _DialogWidget(
-              child: item.child,
-              onComplete: item.onComplete,
-              isDismissible: item.isDismissible,
-            ),
-        ],
+        [component.child, ..._dialogs],
       ),
     );
-  }
-}
-
-/// Widget that renders a single dialog
-class _DialogWidget<T> extends StatelessComponent {
-  const _DialogWidget({
-    required this.child,
-    required this.isDismissible,
-    required this.onComplete,
-  });
-
-  final Component child;
-  final bool isDismissible;
-  final void Function([T? value]) onComplete;
-
-  @override
-  Component build(BuildContext context) {
-    return div(classes: 'modal is-active', [
-      div(
-        classes: 'modal-background',
-        events: isDismissible ? {'click': (_) => onComplete()} : {},
-        [],
-      ),
-      div(
-        classes: 'modal-card',
-        attributes: {'style': 'width: 90%; max-width: 540px;'},
-        [child],
-      ),
-    ]);
   }
 }
 

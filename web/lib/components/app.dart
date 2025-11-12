@@ -66,11 +66,17 @@ class AppState extends State<App> {
             title: 'Authentication Error',
           ),
         );
-      } on ApiException {
+      } catch (e) {
         setState(() {
           _config = null;
           _api = ArtifactApiClient.base();
         });
+        NotificationMessenger.of(context).showNotification(
+          BulmaNotification.error(
+            'Failed to load configuration. Please try again. $e',
+            title: 'Error',
+          ),
+        );
       }
     }
 
@@ -78,6 +84,72 @@ class AppState extends State<App> {
     setState(() {
       _files = filesResponse.files;
     });
+  }
+
+  @override
+  Component build(BuildContext context) {
+    return KeyListener(
+      onKeyDown: (e) {
+        if (e.key == 'Alt') {
+          setState(() {
+            _altPressed = true;
+          });
+        }
+      },
+      onKeyUp: (e) {
+        if (e.key == 'Alt') {
+          setState(() {
+            _altPressed = false;
+          });
+        }
+      },
+      div(classes: 'container', ([
+        NavBar(
+          isAuthenticated: _api.isAuthenticated,
+          altPressed: _altPressed,
+          onAuthToggle: (value) async {
+            if (value) {
+              _login();
+            } else {
+              // Logout: remove token and reset API client
+              TokenStorage.removeToken();
+              setState(() {
+                _api = ArtifactApiClient.base();
+                _config = null;
+              });
+              _load();
+            }
+          },
+          onRefresh: () {
+            _load();
+          },
+        ),
+
+        if (_files == null)
+          MyLoading()
+        else ...[
+          // Stats
+          StatsCard(files: _files!),
+
+          if (_api.isAuthenticated && _config != null)
+            UploadSection(
+              maxContentLength: _config!.maxContentLength,
+              isUploading: _isUploading,
+              uploadingFileName: _uploadingFileName,
+              uploadProgress: _uploadProgress,
+              onUpload: _handleUpload,
+              authToken: _api.authToken,
+            ),
+
+          // Files List
+          FilesList(
+            files: _files!,
+            isAuthenticated: _api.isAuthenticated,
+            onDelete: _delete,
+          ),
+        ],
+      ])),
+    );
   }
 
   Future<void> _handleUpload(web.File file) async {
@@ -147,167 +219,101 @@ class AppState extends State<App> {
     }
   }
 
-  @override
-  Component build(BuildContext context) {
-    return KeyListener(
-      onKeyDown: (e) {
-        if (e.key == 'Alt') {
-          setState(() {
-            _altPressed = true;
-          });
-        }
-      },
-      onKeyUp: (e) {
-        if (e.key == 'Alt') {
-          setState(() {
-            _altPressed = false;
-          });
-        }
-      },
-      div(classes: 'container', ([
-        NavBar(
-          isAuthenticated: _api.isAuthenticated,
-          altPressed: _altPressed,
-          onAuthToggle: (value) async {
-            if (value) {
-              // Show login dialog using DialogManager
-              final token = await DialogManager.of(context).showDialog<String>(
-                (onComplete) => AlertDialog(
-                  title: text('API Authentication'),
-                  content: [
-                    text('Please enter your API token to authenticate.'),
-                    input(
-                      type: InputType.password,
-                      classes: 'input',
-                      id: 'token-input',
-                      attributes: {
-                        'placeholder': 'Enter your API token',
-                        'autocomplete': 'off',
-                      },
-                    ),
-                  ],
-                  actions: [
-                    BulmaButton(
-                      child: text('Login'),
-                      onPressed: () {
-                        final input =
-                            web.document.getElementById('token-input')
-                                as web.HTMLInputElement?;
-                        if (input != null && input.value.trim().isNotEmpty) {
-                          onComplete(input.value.trim());
-                        }
-                      },
-                    ),
-                    BulmaButton(
-                      child: text('Cancel'),
-                      onPressed: () {
-                        onComplete();
-                      },
-                    ),
-                  ],
-                ),
-              );
-
-              if (token == null || token.isEmpty) return;
-
-              print('Save Token: $token');
-              TokenStorage.saveToken(token);
-              setState(() {
-                _api = ArtifactApiClient.base(authToken: token);
-              });
-              await _load();
-              NotificationMessenger.of(context).showNotification(
-                BulmaNotification.success(
-                  'Successfully authenticated! Token stored in browser.',
-                  title: 'Login Successful',
-                ),
-              );
-            } else {
-              // Logout: remove token and reset API client
-              TokenStorage.removeToken();
-              setState(() {
-                _api = ArtifactApiClient.base();
-                _config = null;
-              });
-              _load();
-            }
-          },
-          onRefresh: () {
-            print('Refresh');
-            _load();
-          },
-        ),
-
-        if (_files == null)
-          MyLoading()
-        else ...[
-          // Stats
-          StatsCard(files: _files!),
-
-          if (_api.isAuthenticated && _config != null)
-            UploadSection(
-              maxContentLength: _config!.maxContentLength,
-              isUploading: _isUploading,
-              uploadingFileName: _uploadingFileName,
-              uploadProgress: _uploadProgress,
-              onUpload: _handleUpload,
-              authToken: _api.authToken,
-            ),
-
-          // Files List
-          FilesList(
-            files: _files!,
-            isAuthenticated: _api.isAuthenticated,
-            onDelete: (file) async {
-              // Show confirmation dialog before deleting
-              final result = await DialogManager.of(context).showDialog<bool>(
-                (onComplete) => AlertDialog(
-                  title: text('Delete File'),
-                  content: [
-                    text('Are you sure you want to delete "$file"?'),
-                    br(),
-                    text('This action cannot be undone.'),
-                  ],
-                  actions: [
-                    BulmaButton(
-                      child: text('Delete'),
-                      onPressed: () {
-                        onComplete(true);
-                      },
-                    ),
-                    BulmaButton(
-                      child: text('Cancel'),
-                      onPressed: () {
-                        onComplete();
-                      },
-                    ),
-                  ],
-                ),
-              );
-
-              if (result != true) return;
-
-              try {
-                await _api.deleteFile(file);
-                await _load();
-                NotificationMessenger.of(context).showNotification(
-                  BulmaNotification.success(
-                    'File "$file" was deleted successfully.',
-                    title: 'File Deleted',
-                  ),
-                );
-              } catch (e) {
-                NotificationMessenger.of(context).showNotification(
-                  BulmaNotification.error(
-                    'Failed to delete file "$file". Please try again.',
-                    title: 'Delete Failed',
-                  ),
-                );
-              }
+  void _login() async {
+    // Show login dialog using DialogManager
+    final token = await DialogManager.of(context).showDialog<String>(
+      (onComplete) => AlertDialog(
+        title: text('API Authentication'),
+        content: [
+          text('Please enter your API token to authenticate.'),
+          input(
+            type: InputType.password,
+            classes: 'input',
+            id: 'token-input',
+            attributes: {
+              'placeholder': 'Enter your API token',
+              'autocomplete': 'off',
+              'autofocus': 'true',
             },
           ),
         ],
-      ])),
+        actions: [
+          BulmaButton(
+            child: text('Login'),
+            onPressed: () {
+              final input =
+                  web.document.getElementById('token-input')
+                      as web.HTMLInputElement?;
+              if (input != null && input.value.trim().isNotEmpty) {
+                onComplete(input.value.trim());
+              }
+            },
+          ),
+          BulmaButton(
+            child: text('Cancel'),
+            onPressed: () {
+              onComplete();
+            },
+          ),
+        ],
+      ),
     );
+
+    if (token == null || token.isEmpty) return;
+
+    print('Save Token: $token');
+    TokenStorage.saveToken(token);
+    setState(() {
+      _api = ArtifactApiClient.base(authToken: token);
+    });
+    await _load();
+  }
+
+  Future<void> _delete(String file) async {
+    // Show confirmation dialog before deleting
+    final result = await DialogManager.of(context).showDialog<bool>(
+      (onComplete) => AlertDialog(
+        title: text('Delete File'),
+        content: [
+          text('Are you sure you want to delete "$file"?'),
+          br(),
+          text('This action cannot be undone.'),
+        ],
+        actions: [
+          BulmaButton(
+            child: text('Delete'),
+            onPressed: () {
+              onComplete(true);
+            },
+          ),
+          BulmaButton(
+            child: text('Cancel'),
+            onPressed: () {
+              onComplete();
+            },
+          ),
+        ],
+      ),
+    );
+
+    if (result != true) return;
+
+    try {
+      await _api.deleteFile(file);
+      await _load();
+      NotificationMessenger.of(context).showNotification(
+        BulmaNotification.success(
+          'File "$file" was deleted successfully.',
+          title: 'File Deleted',
+        ),
+      );
+    } catch (e) {
+      NotificationMessenger.of(context).showNotification(
+        BulmaNotification.error(
+          'Failed to delete file "$file". Please try again.',
+          title: 'Delete Failed',
+        ),
+      );
+    }
   }
 }
