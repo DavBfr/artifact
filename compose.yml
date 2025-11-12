@@ -1,6 +1,7 @@
 services:
   artifact-server:
     build:
+      # docker buildx bake --push
       context: .
       dockerfile: Dockerfile
       tags:
@@ -27,9 +28,8 @@ services:
             - server/tmp/
         - action: rebuild
           path: ./web
+          ignore:
+            - web/.dart_tool/
+            - web/build/
         - action: rebuild
           path: ./Dockerfile
-
-x-dockge:
-  urls:
-    - https://files.apptoimeme.fr

@@ -14,6 +14,7 @@ docker run -d \
 ```
 
 Access the web interface at `http://localhost:8080`
+Press `alt` to reveal the login button.
 
 ## Features
 
@@ -64,6 +65,16 @@ services:
       - ART_MAX_FILE_SIZE=500M
     restart: unless-stopped
 ```
+
+Create a `.env` file for environment variables:
+
+```env
+ART_API_TOKEN=your-secret-token
+ART_MAX_FILE_SIZE=1G
+```
+
+Access the web interface at `http://localhost:8080`
+Press `alt` to reveal the login button.
 
 ## API Endpoints
 
