@@ -3,7 +3,7 @@ import 'package:universal_web/js_interop.dart';
 import 'package:universal_web/web.dart';
 
 class KeyListener extends StatefulComponent {
-  KeyListener(this.child, {this.onKeyDown, this.onKeyUp, super.key});
+  const KeyListener(this.child, {this.onKeyDown, this.onKeyUp, super.key});
 
   final Component child;
 

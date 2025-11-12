@@ -362,41 +362,6 @@ func deleteFileHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func downloadFileHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	filename := vars["filename"]
-
-	// Secure the filename
-	filename = filepath.Base(filepath.Clean(filename))
-	filePath := filepath.Join(uploadFolder, filename)
-
-	// Check if file exists
-	stat, err := os.Stat(filePath)
-	if err != nil || stat.IsDir() {
-		http.NotFound(w, r)
-		return
-	}
-
-	// Open the file
-	file, err := os.Open(filePath)
-	if err != nil {
-		http.Error(w, "Failed to open file", http.StatusInternalServerError)
-		return
-	}
-	defer file.Close()
-
-	// Set headers for download
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
-	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", stat.Size()))
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("X-Frame-Options", "DENY")
-	w.Header().Set("X-XSS-Protection", "1; mode=block")
-
-	// Support range requests for partial downloads/resuming
-	http.ServeContent(w, r, filename, stat.ModTime(), file)
-}
-
 func serveFileHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	filename := vars["filename"]
@@ -467,7 +432,6 @@ func main() {
 	r.HandleFunc("/api/upload", requireToken(uploadFileHandler)).Methods("POST")
 	r.HandleFunc("/api/delete/{filename}", requireToken(deleteFileHandler)).Methods("DELETE")
 	r.HandleFunc("/api/uploads/{filename}", serveFileHandler).Methods("GET")
-	r.HandleFunc("/api/download/{filename}", downloadFileHandler).Methods("GET")
 
 	// Static files served as fallback (no /static/ prefix)
 	// Check if static folder and index.html exist

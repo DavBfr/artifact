@@ -2,10 +2,10 @@ import 'package:jaspr/jaspr.dart';
 import 'package:universal_web/web.dart' as web;
 
 class AuthDialog extends StatefulComponent {
+  const AuthDialog({required this.onLogin, required this.onCancel, super.key});
+
   final void Function(String token) onLogin;
   final VoidCallback onCancel;
-
-  const AuthDialog({required this.onLogin, required this.onCancel, super.key});
 
   @override
   State<AuthDialog> createState() => _AuthDialogState();
@@ -17,7 +17,7 @@ class _AuthDialogState extends State<AuthDialog> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(Duration(milliseconds: 100), _focusTokenInput);
+    Future.delayed(const Duration(milliseconds: 100), _focusTokenInput);
   }
 
   void _focusTokenInput() {
@@ -98,7 +98,7 @@ class _AuthDialogState extends State<AuthDialog> {
                   },
                   events: {
                     'input': (event) {
-                      final target = event.target as web.HTMLInputElement;
+                      final target = event.target! as web.HTMLInputElement;
                       setState(() {
                         _token = target.value;
                       });
@@ -130,7 +130,7 @@ class _AuthDialogState extends State<AuthDialog> {
           footer(classes: 'modal-card-foot', [
             button(
               classes: 'button is-primary',
-              onClick: _token.trim().isNotEmpty ? () => _handleSubmit() : null,
+              onClick: _token.trim().isNotEmpty ? _handleSubmit : null,
               attributes: _token.trim().isEmpty ? {'disabled': 'true'} : {},
               [
                 span(classes: 'icon', [i(classes: 'fas fa-sign-in-alt', [])]),

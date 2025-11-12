@@ -4,16 +4,16 @@ import '../models/api_models.dart';
 import '../utils/formatters.dart';
 
 class FilesList extends StatelessComponent {
-  final List<FileInfo> files;
-  final bool isAuthenticated;
-  final void Function(String) onDelete;
-
   const FilesList({
     required this.files,
     required this.isAuthenticated,
     required this.onDelete,
     super.key,
   });
+
+  final List<FileInfo> files;
+  final bool isAuthenticated;
+  final void Function(String) onDelete;
 
   @override
   Component build(BuildContext context) {
@@ -58,18 +58,8 @@ class FilesList extends StatelessComponent {
               i(classes: 'fas fa-inbox fa-4x', []),
             ]),
           ]),
-          p(classes: 'title is-4 has-text-grey-dark mb-3', [
-            text('No artifacts uploaded yet'),
-          ]),
-          p(classes: 'subtitle is-6 has-text-grey mb-4', [
-            text('Upload your first artifact using the API'),
-          ]),
-          div(classes: 'content is-small has-text-grey', [
-            p([
-              text(
-                'Use the authentication token to upload files via the API endpoint.',
-              ),
-            ]),
+          p(classes: 'title is-4 has-text-grey-lighter mb-3', [
+            text('No artifacts'),
           ]),
         ])
       else
@@ -77,7 +67,7 @@ class FilesList extends StatelessComponent {
         div(
           id: 'files-list',
           classes: 'files-container',
-          files.map((file) => _buildFileItem(file)).toList(),
+          files.map(_buildFileItem).toList(),
         ),
     ]);
   }

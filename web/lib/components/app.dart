@@ -1,10 +1,10 @@
-import 'package:artifact_web/components/bulma_button.dart';
 import 'package:jaspr/jaspr.dart';
 import 'package:universal_web/web.dart' as web;
 
 import '../models/api.dart';
 import '../models/api_models.dart';
 import '../utils/token_storage.dart';
+import 'bulma_button.dart';
 import 'bulma_dialogs.dart';
 import 'bulma_notifications.dart';
 import 'files_list.dart';
@@ -36,7 +36,7 @@ class AppState extends State<App> {
     super.initState();
 
     // Initialize API client with stored token if available
-    final storedToken = TokenStorage.getToken();
+    final storedToken = TokenStorage.getToken(context);
     _api = ArtifactApiClient.base(authToken: storedToken);
 
     if (kIsWeb) {
@@ -53,7 +53,7 @@ class AppState extends State<App> {
         });
       } on AuthenticationException {
         // Invalid token - show notification and logout
-        TokenStorage.removeToken();
+        TokenStorage.removeToken(context);
         setState(() {
           _config = null;
           _api = ArtifactApiClient.base();
@@ -103,30 +103,28 @@ class AppState extends State<App> {
           });
         }
       },
-      div(classes: 'container', ([
+      div(classes: 'container', [
         NavBar(
           isAuthenticated: _api.isAuthenticated,
           altPressed: _altPressed,
           onAuthToggle: (value) async {
             if (value) {
-              _login();
+              await _login();
             } else {
               // Logout: remove token and reset API client
-              TokenStorage.removeToken();
+              TokenStorage.removeToken(context);
               setState(() {
                 _api = ArtifactApiClient.base();
                 _config = null;
               });
-              _load();
+              await _load();
             }
           },
-          onRefresh: () {
-            _load();
-          },
+          onRefresh: _load,
         ),
 
         if (_files == null)
-          MyLoading()
+          const MyLoading()
         else ...[
           // Stats
           StatsCard(files: _files!),
@@ -148,7 +146,7 @@ class AppState extends State<App> {
             onDelete: _delete,
           ),
         ],
-      ])),
+      ]),
     );
   }
 
@@ -160,7 +158,7 @@ class AppState extends State<App> {
     });
 
     try {
-      await _api.uploadFileWithProgressXHR(
+      await _api.uploadFile(
         file: file,
         onProgress: (sent, total) {
           final progress = ((sent / total) * 100).round();
@@ -219,7 +217,7 @@ class AppState extends State<App> {
     }
   }
 
-  void _login() async {
+  Future<void> _login() async {
     // Show login dialog using DialogManager
     final token = await DialogManager.of(context).showDialog<String>(
       (onComplete) => AlertDialog(
@@ -261,8 +259,7 @@ class AppState extends State<App> {
 
     if (token == null || token.isEmpty) return;
 
-    print('Save Token: $token');
-    TokenStorage.saveToken(token);
+    TokenStorage.saveToken(context, token);
     setState(() {
       _api = ArtifactApiClient.base(authToken: token);
     });

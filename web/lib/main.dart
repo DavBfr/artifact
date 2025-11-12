@@ -1,11 +1,11 @@
-import 'package:artifact_web/components/bulma_dialogs.dart';
-import 'package:artifact_web/components/bulma_notifications.dart';
 import 'package:jaspr/jaspr.dart';
 
 import 'components/app.dart';
+import 'components/bulma_dialogs.dart';
+import 'components/bulma_notifications.dart';
 
 void main() {
   runApp(
-    NotificationMessengerProvider(child: DialogManagerProvider(child: App())),
+    const NotificationMessengerProvider(child: DialogManagerProvider(child: App())),
   );
 }

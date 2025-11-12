@@ -1,14 +1,10 @@
-import 'package:artifact_web/components/bulma_navbar.dart';
-import 'package:artifact_web/components/logo.dart';
 import 'package:jaspr/jaspr.dart' hide Spacing;
 
 import 'bulma_button.dart';
+import 'bulma_navbar.dart';
+import 'logo.dart';
 
 class NavBar extends StatelessComponent {
-  final bool isAuthenticated;
-  final void Function(bool value) onAuthToggle;
-  final void Function() onRefresh;
-  final bool altPressed;
 
   const NavBar({
     required this.isAuthenticated,
@@ -17,13 +13,17 @@ class NavBar extends StatelessComponent {
     this.altPressed = false,
     super.key,
   });
+  final bool isAuthenticated;
+  final void Function(bool value) onAuthToggle;
+  final void Function() onRefresh;
+  final bool altPressed;
 
   @override
   Component build(BuildContext context) {
     return BulmaNavBar([
       BulmaNavbarBrand(
         children: [
-          BulmaNavbarItem(child: Logo()),
+          const BulmaNavbarItem(child: Logo()),
           BulmaNavbarItem(child: text('Artifact Server')),
         ],
       ),
@@ -32,7 +32,7 @@ class NavBar extends StatelessComponent {
         if (isAuthenticated)
           BulmaNavbarItem(
             child: BulmaButton(
-              child: IconLabel(icon: 'lock', label: 'Logout'),
+              child: const IconLabel(icon: 'lock', label: 'Logout'),
               onPressed: () {
                 onAuthToggle(false);
               },
@@ -41,7 +41,7 @@ class NavBar extends StatelessComponent {
         else if (altPressed)
           BulmaNavbarItem(
             child: BulmaButton(
-              child: IconLabel(icon: 'unlock', label: 'Login'),
+              child: const IconLabel(icon: 'unlock', label: 'Login'),
               onPressed: () {
                 onAuthToggle(true);
               },
@@ -50,10 +50,8 @@ class NavBar extends StatelessComponent {
 
         BulmaNavbarItem(
           child: BulmaButton(
-            child: IconLabel(icon: 'refresh', label: 'Refresh'),
-            onPressed: () {
-              onRefresh();
-            },
+            child: const IconLabel(icon: 'refresh', label: 'Refresh'),
+            onPressed: onRefresh,
           ),
         ),
       ]),

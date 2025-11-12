@@ -5,15 +5,14 @@ enum NotificationType { info, success, warning, danger }
 
 /// Internal wrapper for notifications with unique IDs
 class _NotificationItem {
-  final int id;
-  final Component notification;
-  final Duration? duration;
-
   const _NotificationItem({
     required this.id,
     required this.notification,
     required this.duration,
   });
+  final int id;
+  final Component notification;
+  final Duration? duration;
 }
 
 /// Notification Messenger - similar to Flutter's ScaffoldMessenger
@@ -106,7 +105,7 @@ class NotificationMessengerState extends State<NotificationMessengerProvider> {
                     'position: fixed; top: 1rem; right: 1rem; z-index: 1000; '
                     'display: flex; flex-direction: column; gap: 0.5rem; max-width: 400px;',
               },
-              [for (final item in _notifications) item.notification],
+              [for (final item in _notifications.reversed) item.notification],
             ),
         ],
       ),
@@ -121,27 +120,6 @@ class BulmaNotification extends StatelessComponent {
     required this.type,
     required this.child,
   });
-
-  final Component? title;
-  final Component child;
-  final NotificationType type;
-
-  // /// Show a simple message notification
-  // void showMessage(
-  //   String message, {
-  //   NotificationType type = NotificationType.info,
-  //   String? title,
-  //   Duration duration = const Duration(seconds: 5),
-  // }) {
-  //   showNotification(
-  //     NotificationMessage(
-  //       message: message,
-  //       type: type,
-  //       title: title,
-  //       duration: duration,
-  //     ),
-  //   );
-  // }
 
   /// Show an error notification
   factory BulmaNotification.error(String message, {String? title}) {
@@ -159,6 +137,10 @@ class BulmaNotification extends StatelessComponent {
       title: text(title ?? 'Success'),
     );
   }
+
+  final Component? title;
+  final Component child;
+  final NotificationType type;
 
   String get _typeClass {
     switch (type) {
@@ -192,7 +174,7 @@ class BulmaNotification extends StatelessComponent {
       classes: 'notification $_typeClass is-light notification-toast',
       attributes: {
         'style':
-            'position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px; max-width: 500px; '
+            'position: relative; min-width: 300px; max-width: 500px; '
             'box-shadow: 0 0.5em 1em -0.125em rgba(10,10,10,.1), 0 0px 0 1px rgba(10,10,10,.02); '
             'animation: slideIn 0.3s ease-out;',
       },

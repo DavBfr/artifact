@@ -13,7 +13,9 @@ class ArtifactApiClient {
   ArtifactApiClient({required this.baseUrl, this.authToken});
 
   factory ArtifactApiClient.base({String? authToken}) {
-    final baseUrl = kDebugMode ? 'http://127.0.0.1:9080' : Uri.base.toString();
+    final baseUrl = kDebugMode
+        ? 'http://127.0.0.1:9080'
+        : Uri.base.toString().replaceAll(RegExp(r'\/$'), '');
     return ArtifactApiClient(baseUrl: baseUrl, authToken: authToken);
   }
 
@@ -78,101 +80,8 @@ class ArtifactApiClient {
     }
   }
 
-  /// Upload a file
-  Future<UploadResponse> uploadFile({
-    required List<int> fileBytes,
-    required String fileName,
-  }) async {
-    if (authToken == null || authToken!.isEmpty) {
-      throw AuthenticationException('Authentication token required');
-    }
-
-    final request = http.MultipartRequest(
-      'POST',
-      Uri.parse('$baseUrl/api/upload'),
-    );
-
-    request.headers['Authorization'] = 'Bearer $authToken';
-    request.files.add(
-      http.MultipartFile.fromBytes('file', fileBytes, filename: fileName),
-    );
-
-    final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
-
-    if (response.statusCode == 201 || response.statusCode == 200) {
-      return UploadResponse.fromJson(jsonDecode(response.body));
-    } else if (response.statusCode == 401) {
-      throw AuthenticationException('Invalid authentication token');
-    } else if (response.statusCode == 413) {
-      final data = jsonDecode(response.body);
-      throw FileTooLargeException(data['error'] ?? 'File too large');
-    } else {
-      final data = jsonDecode(response.body);
-      throw ApiException(
-        data['error'] ?? 'Upload failed',
-        statusCode: response.statusCode,
-      );
-    }
-  }
-
-  /// Upload a file with progress tracking
-  Future<UploadResponse> uploadFileWithProgress({
-    required List<int> fileBytes,
-    required String fileName,
-    void Function(int sent, int total)? onProgress,
-  }) async {
-    if (authToken == null || authToken!.isEmpty) {
-      throw AuthenticationException('Authentication token required');
-    }
-
-    final request = http.MultipartRequest(
-      'POST',
-      Uri.parse('$baseUrl/api/upload'),
-    );
-
-    request.headers['Authorization'] = 'Bearer $authToken';
-    request.files.add(
-      http.MultipartFile.fromBytes('file', fileBytes, filename: fileName),
-    );
-
-    final streamedResponse = await request.send();
-
-    // Track progress
-    final totalBytes = request.contentLength;
-    var bytesSent = 0;
-
-    // Note: http package doesn't support upload progress directly
-    // For real progress tracking, you'd need to use XMLHttpRequest directly
-    // This is a simplified version
-    if (onProgress != null && totalBytes > 0) {
-      onProgress(bytesSent, totalBytes);
-    }
-
-    final response = await http.Response.fromStream(streamedResponse);
-
-    if (onProgress != null && totalBytes > 0) {
-      onProgress(totalBytes, totalBytes);
-    }
-
-    if (response.statusCode == 201 || response.statusCode == 200) {
-      return UploadResponse.fromJson(jsonDecode(response.body));
-    } else if (response.statusCode == 401) {
-      throw AuthenticationException('Invalid authentication token');
-    } else if (response.statusCode == 413) {
-      final data = jsonDecode(response.body);
-      throw FileTooLargeException(data['error'] ?? 'File too large');
-    } else {
-      final data = jsonDecode(response.body);
-      throw ApiException(
-        data['error'] ?? 'Upload failed',
-        statusCode: response.statusCode,
-      );
-    }
-  }
-
   /// Upload a file with progress tracking using XMLHttpRequest (web only)
-  Future<UploadResponse> uploadFileWithProgressXHR({
+  Future<UploadResponse> uploadFile({
     required web.File file,
     void Function(int sent, int total)? onProgress,
   }) async {
@@ -290,11 +199,6 @@ class ArtifactApiClient {
     }
   }
 
-  /// Get download URL for a file
-  String getDownloadUrl(String fileName) {
-    return '$baseUrl/api/download/${Uri.encodeComponent(fileName)}';
-  }
-
   /// Get file URL for viewing/serving
   String getFileUrl(String fileName) {
     return '$baseUrl/api/uploads/${Uri.encodeComponent(fileName)}';
@@ -303,10 +207,10 @@ class ArtifactApiClient {
 
 /// Base API exception
 class ApiException implements Exception {
+  ApiException(this.message, {this.statusCode});
+
   final String message;
   final int? statusCode;
-
-  ApiException(this.message, {this.statusCode});
 
   @override
   String toString() => 'ApiException: $message (status: $statusCode)';

@@ -35,16 +35,14 @@ class BulmaNavbarBurger extends StatelessComponent {
   Component build(BuildContext context) {
     return button(
       classes: "navbar-burger${isActive ? ' is-active' : ''}",
-      attributes: {"role": "button", "data-target": "navMenu"},
+      attributes: {'role': 'button', 'data-target': 'navMenu'},
       events: events(
-        onClick: () {
-          onToggle();
-        },
+        onClick: onToggle,
       ),
       [
-        span(attributes: {"aria-hidden": "true"}, []),
-        span(attributes: {"aria-hidden": "true"}, []),
-        span(attributes: {"aria-hidden": "true"}, []),
+        span(attributes: {'aria-hidden': 'true'}, []),
+        span(attributes: {'aria-hidden': 'true'}, []),
+        span(attributes: {'aria-hidden': 'true'}, []),
       ],
     );
   }
@@ -87,7 +85,7 @@ class BulmaNavbarItem extends StatelessComponent {
 
   @override
   Component build(BuildContext context) {
-    var classes = 'navbar-item';
+    const classes = 'navbar-item';
     if (items == null) {
       return href == null
           ? div(classes: classes, [child])

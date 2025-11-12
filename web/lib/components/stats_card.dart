@@ -5,9 +5,9 @@ import '../utils/formatters.dart';
 import 'bulma_level.dart';
 
 class StatsCard extends StatelessComponent {
-  final List<FileInfo> files;
-
   const StatsCard({required this.files, super.key});
+
+  final List<FileInfo> files;
 
   @override
   Component build(BuildContext context) {
@@ -32,10 +32,10 @@ class StatsCard extends StatelessComponent {
 }
 
 class BulmaStat extends StatelessComponent {
+  const BulmaStat({required this.title, required this.content, super.key});
+
   final Component title;
   final Component content;
-
-  const BulmaStat({required this.title, required this.content, super.key});
 
   @override
   Component build(BuildContext context) {

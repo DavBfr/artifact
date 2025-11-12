@@ -3,15 +3,9 @@ import 'package:universal_web/js_interop.dart';
 import 'package:universal_web/web.dart';
 
 import '../utils/formatters.dart';
+import 'bulma_notifications.dart';
 
 class UploadSection extends StatefulComponent {
-  final int maxContentLength;
-  final bool isUploading;
-  final String? uploadingFileName;
-  final int uploadProgress;
-  final void Function(File) onUpload;
-  final String? authToken;
-
   const UploadSection({
     required this.maxContentLength,
     required this.isUploading,
@@ -21,6 +15,13 @@ class UploadSection extends StatefulComponent {
     this.authToken,
     super.key,
   });
+
+  final int maxContentLength;
+  final bool isUploading;
+  final String? uploadingFileName;
+  final int uploadProgress;
+  final void Function(File) onUpload;
+  final String? authToken;
 
   @override
   State<UploadSection> createState() => _UploadSectionState();
@@ -127,9 +128,13 @@ class _UploadSectionState extends State<UploadSection> {
   }
 
   void _showNotification(String message) {
-    // Simple notification using browser API
-    // You can implement a more sophisticated toast notification system
-    print(message);
+    NotificationMessenger.of(context).showNotification(
+      BulmaNotification(
+        title: text('Copied!'),
+        child: text(message),
+        type: NotificationType.info,
+      ),
+    );
   }
 
   @override
