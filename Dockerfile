@@ -70,7 +70,7 @@ FROM alpine:latest
 
 LABEL org.opencontainers.image.vendor="NfetDotNet"
 LABEL org.opencontainers.image.authors="dev.nfet.net@gmail.com"
-LABEL org.opencontainers.image.licenses="Apache2.0"
+LABEL org.opencontainers.image.licenses="Apache-2.0"
 LABEL org.opencontainers.image.title="Artifact Server"
 LABEL org.opencontainers.image.description="A simple file upload server with web interface."
 
