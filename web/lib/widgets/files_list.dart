@@ -64,8 +64,9 @@ class _FilesListState extends State<FilesList> {
         extension == 'htm' ||
         extension == 'css' ||
         extension == 'js' ||
-        extension == 'dart')
+        extension == 'dart') {
       return 'fas fa-file-code';
+    }
 
     if (extension == 'exe' ||
         extension == 'bin' ||
@@ -159,10 +160,10 @@ class _FilesListState extends State<FilesList> {
               classes: 'panel-block',
               attributes: {'style': 'cursor: default;'},
               [
-                (file.mimeType.startsWith('image/') && file.size < 300 * 1024)
+                (file.mimeType.startsWith('image/') && file.size < 500 * 1024)
                     ? img(
                         src: file.url,
-                        alt: file.name,
+                        alt: '',
                         attributes: {
                           'style':
                               'width:48px;height:48px;object-fit:cover;border-radius:4px;',
