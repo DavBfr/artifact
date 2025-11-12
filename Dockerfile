@@ -14,7 +14,7 @@ COPY server/go.mod server/go.sum* ./
 RUN go mod download
 
 # Copy source code from server directory
-COPY server/upload_server.go ./
+COPY server/ ./
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o upload_server .

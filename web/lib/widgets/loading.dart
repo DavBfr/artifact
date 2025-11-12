@@ -7,9 +7,19 @@ class MyLoading extends StatelessComponent {
 
   @override
   Component build(BuildContext context) {
-    return div([
-      // Loading(style: [Loading.ring, Loading.xl]),
-      text('Loading...'),
-    ]);
+    return div(
+      [
+        div(
+          [
+            // spinner element
+            div([], attributes: {'class': 'spinner'}),
+            // message under spinner
+            div([text(message)], attributes: {'class': 'loading-message'}),
+          ],
+          attributes: {'class': 'loading-box'},
+        ),
+      ],
+      attributes: {'class': 'loading-wrapper'},
+    );
   }
 }

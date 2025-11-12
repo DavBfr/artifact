@@ -1,14 +1,12 @@
 import 'package:jaspr/jaspr.dart';
 
-class BulmaColumn extends StatelessComponent {
-  const BulmaColumn(this.children, {super.key});
+class Column extends StatelessComponent {
+  const Column(this.children, {super.key});
 
   final List<Component> children;
 
   @override
   Component build(BuildContext context) {
-    return div(classes: 'columns', [
-      for (final child in children) div(classes: 'column', [child]),
-    ]);
+    return div([for (final child in children) child]);
   }
 }

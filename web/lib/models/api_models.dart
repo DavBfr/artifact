@@ -3,14 +3,15 @@ import 'package:json_annotation/json_annotation.dart';
 part 'api_models.g.dart';
 
 /// File information model
-@JsonSerializable()
+@JsonSerializable(fieldRename: FieldRename.snake)
 class FileInfo {
   FileInfo({
     required this.name,
     required this.size,
     required this.modified,
-    required this.url,
-  });
+    required this.mimeType,
+    required String url,
+  }) : _url = url;
 
   factory FileInfo.fromJson(Map<String, dynamic> json) =>
       _$FileInfoFromJson(json);
@@ -18,7 +19,10 @@ class FileInfo {
   final String name;
   final int size;
   final String modified;
-  final String url;
+  final String mimeType;
+  final String _url;
+
+  String get url => 'http://localhost:9080/$_url';
 
   Map<String, dynamic> toJson() => _$FileInfoToJson(this);
 }

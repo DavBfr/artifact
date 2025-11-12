@@ -10,29 +10,26 @@ class BulmaButton extends StatelessComponent {
     required this.child,
     required this.onPressed,
     this.color,
-    this.isOutlined = false,
-    this.isLoading = false,
+    this.isOutlined = true,
     this.isBlock = false,
-    this.isDisabled = false,
     super.key,
   });
 
   final Component child;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final BulmaColor? color;
   final bool isBlock;
   final bool isOutlined;
-  final bool isLoading;
-  final bool isDisabled;
 
   @override
   Component build(BuildContext context) {
+    final isDisabled = onPressed == null;
+
     return button(
       classes:
           'button'
           '${color != null ? ' is-${color!.name}' : ''}'
           '${isOutlined ? ' is-outlined' : ''}'
-          '${isLoading ? ' is-loading' : ''}'
           '${isBlock ? ' block' : ''}',
       disabled: isDisabled,
       onClick: onPressed,

@@ -3,7 +3,7 @@ import 'package:jaspr/jaspr.dart';
 import '../models/api_models.dart';
 import '../utils/formatters.dart';
 
-class FilesList extends StatelessComponent {
+class FilesList extends StatefulComponent {
   const FilesList({
     required this.files,
     required this.isAuthenticated,
@@ -16,10 +16,25 @@ class FilesList extends StatelessComponent {
   final void Function(String) onDelete;
 
   @override
+  State<FilesList> createState() => _FilesListState();
+}
+
+class _FilesListState extends State<FilesList> {
+  String query = '';
+
+  List<FileInfo> get filteredFiles {
+    if (query.isEmpty) return component.files;
+    final q = query.toLowerCase();
+    return component.files
+        .where((f) => f.name.toLowerCase().contains(q))
+        .toList();
+  }
+
+  @override
   Component build(BuildContext context) {
-    final filesCount = files.isEmpty
+    final filesCount = component.files.isEmpty
         ? 'No files'
-        : '${files.length} file${files.length != 1 ? 's' : ''}';
+        : '${component.files.length} file${component.files.length != 1 ? 's' : ''}';
 
     return div(classes: 'has-background-white', [
       // Header with title and count
@@ -47,10 +62,8 @@ class FilesList extends StatelessComponent {
         ]),
       ]),
 
-      div(classes: 'mb-4', [div(classes: 'is-divider', [])]),
-
       // Files content
-      if (files.isEmpty)
+      if (component.files.isEmpty)
         // No files message - improved empty state
         div(id: 'no-files', classes: 'has-text-centered py-6', [
           div(classes: 'mb-5', [
@@ -63,72 +76,87 @@ class FilesList extends StatelessComponent {
           ]),
         ])
       else
-        // Files list with better spacing
-        div(
-          id: 'files-list',
-          classes: 'files-container',
-          files.map(_buildFileItem).toList(),
-        ),
-    ]);
-  }
-
-  Component _buildFileItem(FileInfo file) {
-    return div(classes: 'mb-3', [
-      div(classes: 'box is-shadowless has-background-light', [
-        article(classes: 'media', [
-          // File icon with better styling
-          figure(classes: 'media-left', [
-            span(
-              classes:
-                  'icon is-large has-text-white has-background-primary is-rounded p-4',
-              [i(classes: 'fas fa-file-alt fa-2x', [])],
-            ),
-          ]),
-
-          // File info with improved typography
-          div(classes: 'media-content', [
-            div(classes: 'content', [
-              p(classes: 'mb-2', [
-                strong(classes: 'is-size-5 has-text-dark', [text(file.name)]),
-              ]),
-              p(classes: 'mb-0', [
-                span(classes: 'icon-text is-small has-text-grey', [
-                  span(classes: 'icon', [i(classes: 'fas fa-clock', [])]),
-                  span(classes: 'mr-3', [text(formatTimeAgo(file.modified))]),
-                ]),
-                span(classes: 'icon-text is-small has-text-grey', [
-                  span(classes: 'icon', [i(classes: 'fas fa-hdd', [])]),
-                  span([text(formatBytes(file.size))]),
-                ]),
-              ]),
-            ]),
-          ]),
-
-          // Action buttons with better styling
-          div(classes: 'media-right', [
-            div(classes: 'buttons are-small', [
-              a(
-                href: file.url,
-                classes: 'button is-primary is-light',
-                attributes: {'download': ''},
-                [
-                  span(classes: 'icon', [i(classes: 'fas fa-download', [])]),
-                  span([text('Download')]),
-                ],
-              ),
-              if (isAuthenticated)
-                button(
-                  classes: 'button is-danger is-light',
-                  onClick: () => onDelete(file.name),
-                  [
-                    span(classes: 'icon', [i(classes: 'fas fa-trash-alt', [])]),
-                    span([text('Delete')]),
-                  ],
+        // Bulma panel-style files list (panel heading, search, and panel-blocks)
+        nav(classes: 'panel is-shadowless', [
+          // Search block
+          div(classes: 'panel-block', [
+            p(classes: 'control has-icons-left', [
+              input(
+                classes: 'input',
+                attributes: {'type': 'text', 'placeholder': 'Search'},
+                events: events(
+                  onInput: (String e) {
+                    setState(() => query = e);
+                  },
                 ),
+              ),
+              span(classes: 'icon is-left', [
+                i(
+                  classes: 'fas fa-search',
+                  attributes: {'aria-hidden': 'true'},
+                  [],
+                ),
+              ]),
             ]),
           ]),
+
+          // File entries (filtered)
+          for (final file in filteredFiles) ...[
+            a(
+              href: file.url,
+              classes: 'panel-block',
+              attributes: {'download': ''},
+              [
+                (file.mimeType.startsWith('image/') && file.size < 300 * 1024)
+                    ? img(
+                        src: file.url,
+                        alt: file.name,
+                        attributes: {
+                          'style':
+                              'width:48px;height:48px;object-fit:cover;border-radius:4px;',
+                        },
+                        classes: 'mr-3',
+                      )
+                    : span(classes: 'panel-icon', [
+                        i(classes: 'fas fa-file', []),
+                      ]),
+                // File main column: name and small metadata stacked
+                div([
+                  div([text(file.name)]),
+                  div(classes: 'is-size-7 has-text-grey', [
+                    text(
+                      '${formatTimeAgo(file.modified)} • ${formatBytes(file.size)}',
+                    ),
+                  ]),
+                ]),
+                // Actions aligned to the right
+                div(classes: 'ml-auto', [
+                  a(
+                    href: file.url,
+                    classes: 'button is-small is-primary is-light mr-2',
+                    attributes: {'download': ''},
+                    [
+                      span(classes: 'icon', [
+                        i(classes: 'fas fa-download', []),
+                      ]),
+                      span([text('Download')]),
+                    ],
+                  ),
+                  if (component.isAuthenticated)
+                    button(
+                      classes: 'button is-small is-danger is-light',
+                      onClick: () => component.onDelete(file.name),
+                      [
+                        span(classes: 'icon', [
+                          i(classes: 'fas fa-trash-alt', []),
+                        ]),
+                      ],
+                    ),
+                ]),
+              ],
+            ),
+          ],
         ]),
-      ]),
     ]);
   }
 }

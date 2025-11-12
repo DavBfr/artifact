@@ -244,6 +244,7 @@ class AppState extends State<App> {
         actions: [
           BulmaButton(
             child: text('Delete'),
+            color: BulmaColor.danger,
             onPressed: () {
               onComplete(true);
             },

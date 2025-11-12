@@ -1,6 +1,8 @@
 import 'package:jaspr/jaspr.dart';
 import 'package:universal_web/web.dart' as web;
 
+import '../bulma/button.dart';
+
 class AuthDialog extends StatefulComponent {
   const AuthDialog({required this.onLogin, required this.onCancel, super.key});
 
@@ -68,12 +70,6 @@ class _AuthDialogState extends State<AuthDialog> {
                 span([text('API Authentication')]),
               ]),
             ]),
-            button(
-              classes: 'delete',
-              attributes: {'aria-label': 'close'},
-              onClick: component.onCancel,
-              [],
-            ),
           ]),
 
           // Body
@@ -128,18 +124,14 @@ class _AuthDialogState extends State<AuthDialog> {
 
           // Footer
           footer(classes: 'modal-card-foot', [
-            button(
-              classes: 'button is-primary',
-              onClick: _token.trim().isNotEmpty ? _handleSubmit : null,
-              attributes: _token.trim().isEmpty ? {'disabled': 'true'} : {},
-              [
+            BulmaButton(
+              onPressed: _token.trim().isNotEmpty ? _handleSubmit : null,
+              child: fragment([
                 span(classes: 'icon', [i(classes: 'fas fa-sign-in-alt', [])]),
                 span([text('Login')]),
-              ],
+              ]),
             ),
-            button(classes: 'button', onClick: component.onCancel, [
-              text('Cancel'),
-            ]),
+            BulmaButton(onPressed: component.onCancel, child: text('Cancel')),
           ]),
         ],
       ),

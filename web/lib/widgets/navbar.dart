@@ -31,6 +31,7 @@ class NavBar extends StatelessComponent {
           BulmaNavbarItem(
             child: BulmaButton(
               child: const IconLabel(icon: 'lock', label: 'Logout'),
+              color: BulmaColor.info,
               onPressed: () {
                 onAuthToggle(false);
               },
@@ -39,6 +40,7 @@ class NavBar extends StatelessComponent {
         else if (altPressed)
           BulmaNavbarItem(
             child: BulmaButton(
+              color: BulmaColor.info,
               child: const IconLabel(icon: 'unlock', label: 'Login'),
               onPressed: () {
                 onAuthToggle(true);
