@@ -49,6 +49,12 @@ class _FilesListState extends State<FilesList> {
     if (extension == 'zip' ||
         extension == 'rar' ||
         extension == '7z' ||
+        extension == 'tbz' ||
+        extension == 'tar' ||
+        extension == 'bz2' ||
+        extension == 'gz' ||
+        extension == 'xz' ||
+        extension == 'z' ||
         extension == 'deb' ||
         extension == 'rpm') {
       return 'fas fa-file-archive';
@@ -149,9 +155,9 @@ class _FilesListState extends State<FilesList> {
           // File entries (filtered)
           for (final file in filteredFiles) ...[
             a(
-              href: file.url,
+              href: 'javascript:void(0);',
               classes: 'panel-block',
-              attributes: {'download': ''},
+              attributes: {'style': 'cursor: default;'},
               [
                 (file.mimeType.startsWith('image/') && file.size < 300 * 1024)
                     ? img(
