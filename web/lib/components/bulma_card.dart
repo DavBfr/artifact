@@ -48,7 +48,7 @@ class BulmaCard extends StatelessComponent {
           ]),
 
         // Content section
-        if (content != null) div(classes: 'content', content),
+        div(classes: 'content', content),
       ]),
 
       // Footer section

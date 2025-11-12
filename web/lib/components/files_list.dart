@@ -40,7 +40,7 @@ class FilesList extends StatelessComponent {
         ]),
         div(classes: 'level-right', [
           div(classes: 'level-item', [
-            span(classes: 'tag is-medium', id: 'files-count', [
+            span(classes: 'tag is-info is-light is-medium', id: 'files-count', [
               text(filesCount),
             ]),
           ]),
@@ -104,13 +104,11 @@ class FilesList extends StatelessComponent {
               p(classes: 'mb-0', [
                 span(classes: 'icon-text is-small has-text-grey', [
                   span(classes: 'icon', [i(classes: 'fas fa-clock', [])]),
-                  span(classes: 'mr-3', [
-                    text('${formatTimeAgo(file.modified)}'),
-                  ]),
+                  span(classes: 'mr-3', [text(formatTimeAgo(file.modified))]),
                 ]),
                 span(classes: 'icon-text is-small has-text-grey', [
                   span(classes: 'icon', [i(classes: 'fas fa-hdd', [])]),
-                  span([text('${formatBytes(file.size)}')]),
+                  span([text(formatBytes(file.size))]),
                 ]),
               ]),
             ]),
