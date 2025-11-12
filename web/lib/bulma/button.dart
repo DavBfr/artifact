@@ -1,6 +1,6 @@
 import 'package:jaspr/jaspr.dart';
 
-import 'bulma_colors.dart';
+import 'colors.dart';
 
 /// Bulma Button Component
 /// Supports a limited subset of the available options

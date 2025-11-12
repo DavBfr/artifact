@@ -1,12 +1,10 @@
 import 'package:jaspr/jaspr.dart';
 import 'package:universal_web/web.dart' as web;
 
+import '../bulma/bulma.dart';
 import '../models/api.dart';
 import '../models/api_models.dart';
 import '../utils/token_storage.dart';
-import 'bulma_button.dart';
-import 'bulma_dialogs.dart';
-import 'bulma_notifications.dart';
 import 'files_list.dart';
 import 'key_listener.dart';
 import 'loading.dart';

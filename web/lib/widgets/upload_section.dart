@@ -2,8 +2,8 @@ import 'package:jaspr/jaspr.dart';
 import 'package:universal_web/js_interop.dart';
 import 'package:universal_web/web.dart';
 
+import '../bulma/bulma.dart';
 import '../utils/formatters.dart';
-import 'bulma_notifications.dart';
 
 class UploadSection extends StatefulComponent {
   const UploadSection({

@@ -1,8 +1,8 @@
 import 'package:jaspr/jaspr.dart';
 
+import '../bulma/bulma.dart';
 import '../models/api_models.dart';
 import '../utils/formatters.dart';
-import 'bulma_level.dart';
 
 class StatsCard extends StatelessComponent {
   const StatsCard({required this.files, super.key});

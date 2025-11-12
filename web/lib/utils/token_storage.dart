@@ -1,7 +1,7 @@
 import 'package:jaspr/jaspr.dart';
 import 'package:universal_web/web.dart' as web;
 
-import '../components/bulma_notifications.dart';
+import '../bulma/bulma.dart';
 
 /// Utility class for managing authentication token in browser's local storage
 class TokenStorage {

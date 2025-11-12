@@ -1,6 +1,6 @@
 import 'package:jaspr/jaspr.dart' hide Color;
 
-import 'bulma_colors.dart';
+import 'colors.dart';
 
 /// Bulma Progress Bar Component
 /// Supports a limited subset of the available options

@@ -1,11 +1,9 @@
 import 'package:jaspr/jaspr.dart' hide Spacing;
 
-import 'bulma_button.dart';
-import 'bulma_navbar.dart';
+import '../bulma/bulma.dart';
 import 'logo.dart';
 
 class NavBar extends StatelessComponent {
-
   const NavBar({
     required this.isAuthenticated,
     required this.onAuthToggle,
