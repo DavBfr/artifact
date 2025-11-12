@@ -10,8 +10,8 @@ class FileInfo {
     required this.size,
     required this.modified,
     required this.mimeType,
-    required String url,
-  }) : _url = url;
+    required this.url,
+  });
 
   factory FileInfo.fromJson(Map<String, dynamic> json) =>
       _$FileInfoFromJson(json);
@@ -20,9 +20,7 @@ class FileInfo {
   final int size;
   final String modified;
   final String mimeType;
-  final String _url;
-
-  String get url => 'http://localhost:9080/$_url';
+  final String url;
 
   Map<String, dynamic> toJson() => _$FileInfoToJson(this);
 }
