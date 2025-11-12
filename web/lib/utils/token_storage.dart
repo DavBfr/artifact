@@ -2,7 +2,7 @@ import 'package:universal_web/web.dart' as web;
 
 /// Utility class for managing authentication token in browser's local storage
 class TokenStorage {
-  static const String _tokenKey = 'artifact_api_token';
+  static const String _tokenKey = 'authToken';
 
   /// Save token to local storage
   static void saveToken(String token) {

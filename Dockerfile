@@ -24,6 +24,8 @@ FROM ghcr.io/cirruslabs/flutter:stable AS web_builder
 # Set working directory
 WORKDIR /app
 
+RUN apt update && apt install -y minify librsvg2-bin optipng scour
+
 # Copy pubspec files
 COPY web/pubspec.yaml web/pubspec.lock* ./
 
@@ -38,15 +40,39 @@ COPY web/web ./web
 RUN dart run build_runner build --delete-conflicting-outputs
 
 # Build the web app
-RUN dart run jaspr_cli:jaspr build
+RUN dart run jaspr_cli:jaspr build -O4
 
-RUN mkdir -p /app/dist \
-    && cp -r /app/build/jaspr/*.html /app/dist/ \
-    && cp -r /app/build/jaspr/*.js /app/dist/ \
-    && cp -r /app/build/jaspr/*.svg /app/dist/
+RUN mkdir -p dist \
+    && cp build/jaspr/*.html dist/ \
+    && cp build/jaspr/*.css dist/ \
+    && cp build/jaspr/*.js dist/ \
+    && cp build/jaspr/*.svg dist/
+
+RUN \
+    for f in $(find dist -name '*.html' -o -name '*.css' -o -name '*.js' -a -not -name '*.dart.js'); do \
+    minify -o $f $f; \
+    done
+
+RUN rsvg-convert dist/logo.svg -o dist/favicon.png -w 256 -h 256
+
+RUN optipng -o7 dist/favicon.png
+
+RUN \
+    for f in build/jaspr/*.svg; do \
+    base=$(basename $f); \
+    scour --enable-id-stripping --enable-comment-stripping \
+    --remove-descriptive-elements --shorten-ids --indent=none \
+    -i $f -o dist/$base; \
+    done
 
 # Final stage - minimal Alpine Linux
 FROM alpine:latest
+
+LABEL org.opencontainers.image.vendor="NfetDotNet"
+LABEL org.opencontainers.image.authors="dev.nfet.net@gmail.com"
+LABEL org.opencontainers.image.licenses="Apache2.0"
+LABEL org.opencontainers.image.title="Artifact Server"
+LABEL org.opencontainers.image.description="A simple file upload server with web interface."
 
 # Install ca-certificates for HTTPS support
 RUN apk --no-cache add ca-certificates
@@ -62,8 +88,7 @@ WORKDIR /app
 COPY --from=builder /build/upload_server /app/upload_server
 
 # Copy the built web files
-# COPY --from=web_builder /app/dist/ ./static/
-COPY ./static/ ./static/
+COPY --from=web_builder /app/dist/ ./static/
 
 # Create uploads directory and set permissions
 RUN mkdir -p /var/uploads && \
