@@ -5,7 +5,6 @@ import (
 	"net/http"
 )
 
-
 type HealthResponse struct {
 	Status  string `json:"status"`
 	Service string `json:"service"`

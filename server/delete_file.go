@@ -10,7 +10,6 @@ import (
 	"github.com/gorilla/mux"
 )
 
-
 type DeleteResponse struct {
 	Success bool   `json:"success"`
 	Message string `json:"message,omitempty"`

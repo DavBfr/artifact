@@ -5,7 +5,6 @@ import (
 	"net/http"
 )
 
-
 const (
 	defaultMaxFileSize = 100 * 1024 * 1024 // 100MB
 	chunkSize          = 8 * 1024 * 1024   // 8MB chunks
@@ -18,13 +17,11 @@ var (
 	staticFolder     string
 )
 
-
 type ConfigResponse struct {
 	Success          bool   `json:"success"`
 	MaxContentLength int64  `json:"max_content_length"`
 	Error            string `json:"error,omitempty"`
 }
-
 
 func getConfigHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")

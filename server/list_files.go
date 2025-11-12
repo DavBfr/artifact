@@ -8,15 +8,13 @@ import (
 	"sort"
 )
 
-
-
 type FileInfo struct {
 	Name     string `json:"name"`
 	Size     int64  `json:"size"`
 	Modified string `json:"modified"`
 	URL      string `json:"url"`
+	MimeType string `json:"mime_type"`
 }
-
 
 type ListFilesResponse struct {
 	Success bool       `json:"success"`
@@ -24,7 +22,6 @@ type ListFilesResponse struct {
 	Count   int        `json:"count"`
 	Error   string     `json:"error,omitempty"`
 }
-
 
 func listFilesHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")

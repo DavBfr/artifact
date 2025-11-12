@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 )
 
-
 type UploadResponse struct {
 	Success  bool     `json:"success"`
 	Message  string   `json:"message,omitempty"`
@@ -17,8 +16,6 @@ type UploadResponse struct {
 	Replaced bool     `json:"replaced"`
 	Error    string   `json:"error,omitempty"`
 }
-
-
 
 func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")

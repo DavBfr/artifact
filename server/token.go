@@ -6,14 +6,12 @@ import (
 	"strings"
 )
 
-
 type Response struct {
 	Success bool        `json:"success"`
 	Error   string      `json:"error,omitempty"`
 	Message string      `json:"message,omitempty"`
 	Data    interface{} `json:"data,omitempty"`
 }
-
 
 func requireToken(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
