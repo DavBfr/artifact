@@ -17,7 +17,7 @@ class StatsCard extends StatelessComponent {
         ? formatTimeAgo(files.first.modified)
         : 'Never';
 
-    return BulmaLevel([
+    return BulmaLevel(classes: 'is-hidden-mobile', [
       BulmaLevelItem(
         heading: text('Total Files'),
         title: text(totalFiles.toString()),

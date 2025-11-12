@@ -1,13 +1,15 @@
 import 'package:jaspr/jaspr.dart';
 
 class BulmaLevel extends StatelessComponent {
-  const BulmaLevel(this.children, {super.key});
+  const BulmaLevel(this.children, {this.classes = '', super.key});
 
   final List<Component> children;
 
+  final String classes;
+
   @override
   Component build(BuildContext context) {
-    return nav(classes: 'level', children);
+    return nav(classes: 'level $classes', children);
   }
 }
 

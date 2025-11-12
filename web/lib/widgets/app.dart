@@ -5,6 +5,7 @@ import '../bulma/bulma.dart';
 import '../models/api.dart';
 import '../models/api_models.dart';
 import '../utils/token_storage.dart';
+import 'auth_dialog.dart';
 import 'files_list.dart';
 import 'key_listener.dart';
 import 'loading.dart';
@@ -218,41 +219,7 @@ class AppState extends State<App> {
   Future<void> _login() async {
     // Show login dialog using DialogManager
     final token = await DialogManager.of(context).showDialog<String>(
-      (onComplete) => AlertDialog(
-        title: text('API Authentication'),
-        content: [
-          text('Please enter your API token to authenticate.'),
-          input(
-            type: InputType.password,
-            classes: 'input',
-            id: 'token-input',
-            attributes: {
-              'placeholder': 'Enter your API token',
-              'autocomplete': 'off',
-              'autofocus': 'true',
-            },
-          ),
-        ],
-        actions: [
-          BulmaButton(
-            child: text('Login'),
-            onPressed: () {
-              final input =
-                  web.document.getElementById('token-input')
-                      as web.HTMLInputElement?;
-              if (input != null && input.value.trim().isNotEmpty) {
-                onComplete(input.value.trim());
-              }
-            },
-          ),
-          BulmaButton(
-            child: text('Cancel'),
-            onPressed: () {
-              onComplete();
-            },
-          ),
-        ],
-      ),
+      (onComplete) => AuthDialog(onLogin: onComplete, onCancel: onComplete),
     );
 
     if (token == null || token.isEmpty) return;
