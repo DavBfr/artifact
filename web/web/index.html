@@ -1,19 +1,40 @@
 <!DOCTYPE html>
 <html>
 
-  <head>
-    <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta mame="description" content="A simple file upload server with web interface.">
-    <title>Artifact Server</title>
-    <link rel="stylesheet" href="styles.css">
-    <link rel="icon" type="image/png" href="favicon.png">
-    <link rel="apple-touch-icon" sizes="256x256" href="favicon.png">
-    <script defer src="main.dart.js"></script>
-  </head>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta mame="description" content="A simple file upload server with web interface.">
+  <title>Artifact Server</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="apple-touch-icon" sizes="256x256" href="favicon.png">
+  <script defer src="main.dart.js"></script>
+  <style>
+    /* Loading screen styles */
+    #loading-screen {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
 
-  <body>
-  </body>
+    .loading-logo {
+      width: 140px;
+      height: 140px;
+      display: block;
+    }
+  </style>
+</head>
 
-  </html>
+<body>
+  <!-- Loading screen shown while the JS app initializes -->
+  <div id="loading-screen">
+    <img src="logo.svg" alt="" class="loading-logo" />
+  </div>
+</body>
+
+</html>

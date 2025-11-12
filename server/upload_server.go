@@ -127,12 +127,19 @@ func parseSize(s string, defaultSize int64) int64 {
 
 func requireToken(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		token := r.Header.Get("Authorization")
 
-		// Also check for token in form data for curl compatibility
-		if token == "" {
-			token = r.FormValue("token")
+		if apiToken == "" {
+			// Authenticated access disabled
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(Response{
+				Success: false,
+				Error:   "Access denied. No API token configured on server.",
+			})
+			return
 		}
+
+		token := r.Header.Get("Authorization")
 
 		if token == "" {
 			w.Header().Set("Content-Type", "application/json")
@@ -410,9 +417,6 @@ func main() {
 	maxContentLength = parseSize(maxFileSizeStr, defaultMaxFileSize)
 
 	apiToken = os.Getenv("ART_API_TOKEN")
-	if apiToken == "" {
-		apiToken = "default-token"
-	}
 
 	// Ensure upload directory exists
 	if err := os.MkdirAll(uploadFolder, 0755); err != nil {
