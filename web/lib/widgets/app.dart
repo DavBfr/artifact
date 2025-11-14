@@ -7,7 +7,6 @@ import '../models/api_models.dart';
 import '../utils/token_storage.dart';
 import 'auth_dialog.dart';
 import 'files_list.dart';
-import 'footer.dart';
 import 'key_listener.dart';
 import 'loading.dart';
 import 'navbar.dart';
@@ -147,8 +146,10 @@ class AppState extends State<App> {
           ),
         ],
 
+        div(classes: 'my-6', []),
+
         // Footer
-        const BulmaFooter(),
+        // const BulmaFooter(),
       ]),
     );
   }
