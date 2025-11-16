@@ -9,6 +9,7 @@
 3. **Docker Multi-stage Build**: Compiles both components into a single Alpine image
 
 Key architectural decisions:
+
 - **No database**: Files stored directly in filesystem (`/var/uploads`)
 - **Stateless authentication**: Single shared token (`ART_API_TOKEN`) via Bearer auth
 - **Client-side rendering**: Jaspr compiles Dart to JavaScript for web execution
@@ -22,14 +23,14 @@ server/           # Go backend - one handler per file pattern
   main.go         # Router setup, env config, static file serving
   *_handler.go    # Each API endpoint in separate file
   token.go        # requireToken() middleware for protected routes
-  
+
 web/lib/
   main.dart       # Entry point, wraps App in providers
   widgets/        # Page-level components (app.dart, files_list.dart, etc)
   bulma/          # Custom Bulma-style components for Jaspr
   models/         # API client (api.dart) and JSON models (api_models.dart)
   utils/          # Browser localStorage wrapper (token_storage.dart)
-  
+
 flt/              # Experimental Flutter desktop version (not production)
 ```
 
@@ -91,6 +92,7 @@ await _api.uploadFile(
 ### Token Storage
 
 Token persisted in browser `localStorage` via `TokenStorage` utility:
+
 ```dart
 TokenStorage.saveToken(context, token);  // Store
 final token = TokenStorage.getToken(context);  // Retrieve
@@ -106,6 +108,7 @@ Components in `web/lib/bulma/` implement Bulma CSS patterns as Jaspr widgets:
 - **Pattern**: Most components are stateless wrappers around `div()` with Bulma classes
 
 Example from `notifications.dart`:
+
 ```dart
 BulmaNotification.error('Message', title: 'Error')  // Creates styled notification
 ```
@@ -113,6 +116,7 @@ BulmaNotification.error('Message', title: 'Error')  // Creates styled notificati
 ### Code Generation
 
 Models in `models/api_models.dart` use `json_serializable`:
+
 - Add `part 'api_models.g.dart';` directive
 - Annotate classes with `@JsonSerializable()`
 - Run `dart run build_runner build` to generate `*.g.dart` files
@@ -121,11 +125,13 @@ Models in `models/api_models.dart` use `json_serializable`:
 ## Docker Build Process
 
 Multi-stage Dockerfile:
+
 1. **builder**: Compiles Go binary from `server/`
 2. **web_builder**: Runs Dart build pipeline (pub get → build_runner → jaspr build → minification)
 3. **final**: Alpine image with Go binary + compiled JS/CSS in `/app/static/`
 
 Build for multiple architectures:
+
 ```bash
 docker buildx bake --push  # Uses platforms from compose.yml
 ```
@@ -141,6 +147,7 @@ docker buildx bake --push  # Uses platforms from compose.yml
 ## Common Patterns
 
 ### Error Handling in Go
+
 ```go
 if err != nil {
     w.WriteHeader(http.StatusInternalServerError)
@@ -150,6 +157,7 @@ if err != nil {
 ```
 
 ### State Management in Jaspr
+
 ```dart
 setState(() {
   _files = filesResponse.files;  // Triggers rebuild like Flutter
@@ -157,6 +165,7 @@ setState(() {
 ```
 
 ### File Operations
+
 - **Upload**: Multipart form with `file` field, returns `FileInfo` with URL
 - **Delete**: DELETE `/api/delete/{filename}` with auth
 - **Download**: GET `/api/uploads/{filename}` (no auth required)
@@ -165,6 +174,7 @@ setState(() {
 ## Testing & Validation
 
 No formal test suite exists. Validation approach:
+
 1. Build Docker image: `docker buildx bake`
 2. Run compose: `docker compose up`
 3. Test web UI at http://localhost:9080
