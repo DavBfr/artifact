@@ -8,6 +8,8 @@ on:
       - "v*"
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * 0'  # Every Sunday at 2 AM UTC
 
 env:
   DOCKER_IMAGE: davbfr/artifact
