@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Backend",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/server",
+      "env": {
+        "ART_UPLOAD_FOLDER": "${workspaceFolder}/data",
+        "ART_PORT": "8080",
+        "ART_STATIC_FOLDER": "${workspaceFolder}/web/build/jaspr",
+        "ART_API_TOKEN": "1234",
+      }
+    },
+  ]
+}
