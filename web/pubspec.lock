@@ -413,10 +413,10 @@ packages:
     dependency: "direct dev"
     description:
       name: jaspr_cli
-      sha256: "5efb96113e173f55e906ef5bd4659158454466ba2a8a4b2105cc18dee572fccd"
+      sha256: "34200d4d2bfd322f5bc6bc8e27cd911f331db3b45b304c3e19edd8fcef6d4dcf"
       url: "https://pub.dev"
     source: hosted
-    version: "0.21.7"
+    version: "0.22.0"
   jaspr_lints:
     dependency: "direct dev"
     description:
