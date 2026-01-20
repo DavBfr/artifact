@@ -133,10 +133,10 @@ packages:
     dependency: "direct dev"
     description:
       name: build_web_compilers
-      sha256: "37b1e61ae004124bfbb49079f73ee548d216acc901a58e65b0ffe02baa21cb96"
+      sha256: fd42bfa374853d80d1e1ef8a740a7a7b26fe5bd658cae1226fa67f5746b4838a
       url: "https://pub.dev"
     source: hosted
-    version: "4.4.6"
+    version: "4.4.7"
   built_collection:
     dependency: transitive
     description:
