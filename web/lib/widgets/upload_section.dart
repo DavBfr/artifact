@@ -1,3 +1,4 @@
+import 'package:jaspr/dom.dart';
 import 'package:jaspr/jaspr.dart';
 import 'package:universal_web/js_interop.dart';
 import 'package:universal_web/web.dart';
@@ -130,8 +131,8 @@ class _UploadSectionState extends State<UploadSection> {
   void _showNotification(String message) {
     NotificationMessenger.of(context).showNotification(
       BulmaNotification(
-        title: text('Copied!'),
-        child: text(message),
+        title: const Component.text('Copied!'),
+        child: Component.text(message),
         type: NotificationType.info,
       ),
     );
@@ -163,7 +164,7 @@ class _UploadSectionState extends State<UploadSection> {
     return div(classes: 'box has-background-white mb-5', id: 'upload-section', [
       // Header
       nav(classes: 'level mb-4', [
-        div(classes: 'level-left', [
+        const div(classes: 'level-left', [
           div(classes: 'level-item', [
             div([
               p(classes: 'title is-4 mb-1', [
@@ -171,7 +172,7 @@ class _UploadSectionState extends State<UploadSection> {
                   span(classes: 'icon has-text-info', [
                     i(classes: 'fas fa-cloud-upload-alt', []),
                   ]),
-                  span([text('Upload Artifact')]),
+                  span([Component.text('Upload Artifact')]),
                 ]),
               ]),
             ]),
@@ -180,8 +181,14 @@ class _UploadSectionState extends State<UploadSection> {
         div(classes: 'level-right', [
           div(classes: 'level-item', [
             span(classes: 'tag is-info is-light is-medium', [
-              span(classes: 'icon', [i(classes: 'fas fa-info-circle', [])]),
-              span([text('Max: ${formatBytes(component.maxContentLength)}')]),
+              const span(classes: 'icon', [
+                i(classes: 'fas fa-info-circle', []),
+              ]),
+              span([
+                Component.text(
+                  'Max: ${formatBytes(component.maxContentLength)}',
+                ),
+              ]),
             ]),
           ]),
         ]),
@@ -192,21 +199,21 @@ class _UploadSectionState extends State<UploadSection> {
         classes:
             'box has-background-light has-text-centered p-6 is-clickable$dragOverClass',
         id: 'upload-zone',
-        attributes: {
+        attributes: const {
           'style':
               'border: 2px dashed #dbdbdb; border-radius: 6px; transition: all 0.3s ease;',
         },
-        [
+        const [
           div(classes: 'mb-4', [
             span(classes: 'icon is-large has-text-info', [
               i(classes: 'fas fa-cloud-upload-alt fa-3x', []),
             ]),
           ]),
           p(classes: 'title is-5 has-text-grey-dark mb-4', [
-            text('Drop files here or click to browse'),
+            Component.text('Drop files here or click to browse'),
           ]),
           p(classes: 'subtitle is-6 has-text-grey-light mb-6', [
-            text('Supports multiple file uploads'),
+            Component.text('Supports multiple file uploads'),
           ]),
 
           // Hidden file input
@@ -223,7 +230,7 @@ class _UploadSectionState extends State<UploadSection> {
                 span(classes: 'icon is-small', [
                   i(classes: 'fas fa-terminal', []),
                 ]),
-                span([text('Upload via curl command')]),
+                span([Component.text('Upload via curl command')]),
               ]),
             ]),
             div(classes: 'field has-addons', [
@@ -264,11 +271,13 @@ class _UploadSectionState extends State<UploadSection> {
                 div(classes: 'level-item', [
                   p(classes: 'subtitle is-6 has-text-weight-semibold', [
                     span(classes: 'icon-text', [
-                      span(classes: 'icon has-text-info', [
+                      const span(classes: 'icon has-text-info', [
                         i(classes: 'fas fa-spinner fa-pulse', []),
                       ]),
                       span(id: 'upload-filename', [
-                        text(component.uploadingFileName ?? 'Uploading...'),
+                        Component.text(
+                          component.uploadingFileName ?? 'Uploading...',
+                        ),
                       ]),
                     ]),
                   ]),
@@ -277,7 +286,7 @@ class _UploadSectionState extends State<UploadSection> {
               div(classes: 'level-right', [
                 div(classes: 'level-item', [
                   span(classes: 'tag is-info', id: 'upload-percentage', [
-                    text('${component.uploadProgress}%'),
+                    Component.text('${component.uploadProgress}%'),
                   ]),
                 ]),
               ]),
@@ -287,7 +296,7 @@ class _UploadSectionState extends State<UploadSection> {
             classes: 'progress is-info',
             id: 'upload-progress-bar',
             attributes: {'value': '${component.uploadProgress}', 'max': '100'},
-            [text('${component.uploadProgress}%')],
+            [Component.text('${component.uploadProgress}%')],
           ),
         ]),
     ]);

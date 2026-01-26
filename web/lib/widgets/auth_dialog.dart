@@ -1,3 +1,4 @@
+import 'package:jaspr/dom.dart';
 import 'package:jaspr/jaspr.dart';
 import 'package:universal_web/web.dart' as web;
 
@@ -52,24 +53,24 @@ class _AuthDialogState extends State<AuthDialog> {
   @override
   Component build(BuildContext context) {
     return AlertDialog(
-      title: span(classes: 'icon-text', [
+      title: const span(classes: 'icon-text', [
         span(classes: 'icon has-text-primary', [i(classes: 'fas fa-key', [])]),
-        span([text('API Authentication')]),
+        span([Component.text('API Authentication')]),
       ]),
       content: [
-        p(classes: 'has-text-grey', [
-          text(
+        const p(classes: 'has-text-grey', [
+          Component.text(
             'Enter your API authentication token to upload and manage artifacts.',
           ),
         ]),
         div(classes: 'field', [
-          label(classes: 'label', [text('API Token')]),
+          const label(classes: 'label', [Component.text('API Token')]),
           div(classes: 'control has-icons-left', [
             input(
               type: InputType.password,
               classes: 'input is-medium',
               id: 'token-input',
-              attributes: {
+              attributes: const {
                 'placeholder': 'Enter your API token',
                 'autocomplete': 'off',
               },
@@ -85,18 +86,20 @@ class _AuthDialogState extends State<AuthDialog> {
                 },
               },
             ),
-            span(classes: 'icon is-left', [i(classes: 'fas fa-lock', [])]),
+            const span(classes: 'icon is-left', [
+              i(classes: 'fas fa-lock', []),
+            ]),
           ]),
           if (_token.isNotEmpty)
             p(classes: 'help is-success', [
-              text('Token entered (${_token.length} characters)'),
+              Component.text('Token entered (${_token.length} characters)'),
             ]),
         ]),
 
-        div(classes: 'notification is-info is-light mt-4', [
+        const div(classes: 'notification is-info is-light mt-4', [
           p(classes: 'is-size-7', [
-            strong([text('Note: ')]),
-            text(
+            strong([Component.text('Note: ')]),
+            Component.text(
               'The token is securely stored in your browser\'s local storage and will persist across sessions.',
             ),
           ]),
@@ -106,12 +109,15 @@ class _AuthDialogState extends State<AuthDialog> {
       actions: [
         BulmaButton(
           onPressed: _token.trim().isNotEmpty ? _handleSubmit : null,
-          child: fragment([
+          child: const Component.fragment([
             span(classes: 'icon', [i(classes: 'fas fa-sign-in-alt', [])]),
-            span([text('Login')]),
+            span([Component.text('Login')]),
           ]),
         ),
-        BulmaButton(onPressed: component.onCancel, child: text('Cancel')),
+        BulmaButton(
+          onPressed: component.onCancel,
+          child: const Component.text('Cancel'),
+        ),
       ],
     );
   }

@@ -1,3 +1,4 @@
+import 'package:jaspr/dom.dart';
 import 'package:jaspr/jaspr.dart';
 
 class Logo extends StatelessComponent {
@@ -5,6 +6,6 @@ class Logo extends StatelessComponent {
 
   @override
   Component build(BuildContext context) {
-    return img(src: 'logo.svg', attributes: {'width': '38', 'height': '38'});
+    return const img(src: 'logo.svg', attributes: {'width': '38', 'height': '38'});
   }
 }
