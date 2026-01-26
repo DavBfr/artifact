@@ -18,6 +18,13 @@ analyzer:
     unnecessary_parenthesis: error
     use_function_type_syntax_for_parameters: warning
 
+plugins:
+  jaspr_lints:
+    diagnostics:
+      sort_children_last: true
+      prefer_html_components: true
+      styles_ordering: true
+
 custom_lint:
   rules:
     prefer_html_methods: true

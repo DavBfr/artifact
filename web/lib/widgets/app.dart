@@ -1,3 +1,4 @@
+import 'package:jaspr/dom.dart';
 import 'package:jaspr/jaspr.dart';
 import 'package:universal_web/web.dart' as web;
 
@@ -146,7 +147,7 @@ class AppState extends State<App> {
           ),
         ],
 
-        div(classes: 'my-6', []),
+        const div(classes: 'my-6', []),
 
         // Footer
         // const BulmaFooter(),
@@ -240,22 +241,22 @@ class AppState extends State<App> {
     // Show confirmation dialog before deleting
     final result = await DialogManager.of(context).showDialog<bool>(
       (onComplete) => AlertDialog(
-        title: text('Delete File'),
+        title: const Component.text('Delete File'),
         content: [
-          text('Are you sure you want to delete "$file"?'),
-          br(),
-          text('This action cannot be undone.'),
+          Component.text('Are you sure you want to delete "$file"?'),
+          const br(),
+          const Component.text('This action cannot be undone.'),
         ],
         actions: [
           BulmaButton(
-            child: text('Delete'),
+            child: const Component.text('Delete'),
             color: BulmaColor.danger,
             onPressed: () {
               onComplete(true);
             },
           ),
           BulmaButton(
-            child: text('Cancel'),
+            child: const Component.text('Cancel'),
             onPressed: () {
               onComplete();
             },

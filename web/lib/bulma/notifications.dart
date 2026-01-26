@@ -1,3 +1,4 @@
+import 'package:jaspr/dom.dart';
 import 'package:jaspr/jaspr.dart';
 
 /// Notification types matching Bulma's color scheme
@@ -93,14 +94,14 @@ class NotificationMessengerState extends State<NotificationMessengerProvider> {
     return NotificationMessenger(
       state: this,
       child: div(
-        attributes: {'style': 'position: relative'},
+        attributes: const {'style': 'position: relative'},
         [
           component.child,
 
           // Notification overlay - stack all notifications
           if (_notifications.isNotEmpty)
             div(
-              attributes: {
+              attributes: const {
                 'style':
                     'position: fixed; top: 1rem; right: 1rem; z-index: 1000; '
                     'display: flex; flex-direction: column; gap: 0.5rem; max-width: 400px;',
@@ -124,17 +125,17 @@ class BulmaNotification extends StatelessComponent {
   /// Show an error notification
   factory BulmaNotification.error(String message, {String? title}) {
     return BulmaNotification(
-      child: text(message),
+      child: Component.text(message),
       type: NotificationType.danger,
-      title: text(title ?? 'Error'),
+      title: Component.text(title ?? 'Error'),
     );
   }
 
   factory BulmaNotification.success(String message, {String? title}) {
     return BulmaNotification(
-      child: text(message),
+      child: Component.text(message),
       type: NotificationType.success,
-      title: text(title ?? 'Success'),
+      title: Component.text(title ?? 'Success'),
     );
   }
 
@@ -172,7 +173,7 @@ class BulmaNotification extends StatelessComponent {
   Component build(BuildContext context) {
     return div(
       classes: 'notification $_typeClass is-light notification-toast',
-      attributes: {
+      attributes: const {
         'style':
             'position: relative; min-width: 300px; max-width: 500px; '
             'box-shadow: 0 0.5em 1em -0.125em rgba(10,10,10,.1), 0 0px 0 1px rgba(10,10,10,.02); '
@@ -183,7 +184,9 @@ class BulmaNotification extends StatelessComponent {
           if (title != null) ...[
             p(classes: 'is-size-6 has-text-weight-semibold mb-2', [
               span(classes: 'icon-text', [
-                span(classes: 'icon', [i(classes: 'fas $_iconClass', [])]),
+                span(classes: 'icon', [
+                  i(classes: 'fas $_iconClass', const []),
+                ]),
                 span([title!]),
               ]),
             ]),

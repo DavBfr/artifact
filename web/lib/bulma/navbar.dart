@@ -1,3 +1,4 @@
+import 'package:jaspr/dom.dart';
 import 'package:jaspr/jaspr.dart';
 
 /// Bulma Navbar Component
@@ -35,11 +36,9 @@ class BulmaNavbarBurger extends StatelessComponent {
   Component build(BuildContext context) {
     return button(
       classes: "navbar-burger${isActive ? ' is-active' : ''}",
-      attributes: {'role': 'button', 'data-target': 'navMenu'},
-      events: events(
-        onClick: onToggle,
-      ),
-      [
+      attributes: const {'role': 'button', 'data-target': 'navMenu'},
+      events: events(onClick: onToggle),
+      const [
         span(attributes: {'aria-hidden': 'true'}, []),
         span(attributes: {'aria-hidden': 'true'}, []),
         span(attributes: {'aria-hidden': 'true'}, []),
@@ -104,7 +103,7 @@ class BulmaNavbarDivider extends StatelessComponent {
 
   @override
   Component build(BuildContext context) {
-    return hr(classes: 'navbar-divider');
+    return const hr(classes: 'navbar-divider');
   }
 }
 
