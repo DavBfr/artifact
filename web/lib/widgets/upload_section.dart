@@ -1,6 +1,5 @@
 import 'package:jaspr/dom.dart';
 import 'package:jaspr/jaspr.dart';
-import 'package:universal_web/js_interop.dart';
 import 'package:universal_web/web.dart';
 
 import '../bulma/bulma.dart';
@@ -30,46 +29,6 @@ class UploadSection extends StatefulComponent {
 
 class _UploadSectionState extends State<UploadSection> {
   bool isDragOver = false;
-
-  @override
-  void initState() {
-    super.initState();
-    Future.delayed(Duration.zero, _setupUploadHandlers);
-  }
-
-  void _setupUploadHandlers() {
-    final uploadZone = document.getElementById('upload-zone');
-    final fileInput =
-        document.getElementById('file-input') as HTMLInputElement?;
-
-    if (uploadZone != null && fileInput != null) {
-      // Drag and drop handlers
-      uploadZone.addEventListener('dragover', _onDragOver.toJS);
-      uploadZone.addEventListener('dragleave', _onDragLeave.toJS);
-      uploadZone.addEventListener('drop', _onDrop.toJS);
-
-      // File input change handler
-      fileInput.addEventListener('change', _onFileInputChange.toJS);
-
-      // Click zone to trigger file input
-      uploadZone.addEventListener(
-        'click',
-        ((Event event) {
-          fileInput.click();
-        }).toJS,
-      );
-    }
-
-    // Copy curl command button
-    final copyBtn = document.getElementById('copy-curl-btn');
-    copyBtn?.addEventListener(
-      'click',
-      ((Event event) {
-        event.stopPropagation();
-        _copyCurlCommand();
-      }).toJS,
-    );
-  }
 
   void _onDragOver(Event event) {
     event.preventDefault();
@@ -118,6 +77,12 @@ class _UploadSectionState extends State<UploadSection> {
     }
   }
 
+  void _onUploadZoneClick(Event event) {
+    final fileInput =
+        document.getElementById('file-input') as HTMLInputElement?;
+    fileInput?.click();
+  }
+
   void _copyCurlCommand() {
     final serverUrl = window.location.origin;
     final token = component.authToken ?? '{token}';
@@ -136,25 +101,6 @@ class _UploadSectionState extends State<UploadSection> {
         type: NotificationType.info,
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    final uploadZone = document.getElementById('upload-zone');
-    final fileInput =
-        document.getElementById('file-input') as HTMLInputElement?;
-
-    if (uploadZone != null) {
-      uploadZone.removeEventListener('dragover', _onDragOver.toJS);
-      uploadZone.removeEventListener('dragleave', _onDragLeave.toJS);
-      uploadZone.removeEventListener('drop', _onDrop.toJS);
-    }
-
-    if (fileInput != null) {
-      fileInput.removeEventListener('change', _onFileInputChange.toJS);
-    }
-
-    super.dispose();
   }
 
   @override
@@ -199,6 +145,12 @@ class _UploadSectionState extends State<UploadSection> {
         classes:
             'box has-background-light has-text-centered p-6 is-clickable$dragOverClass',
         id: 'upload-zone',
+        events: {
+          'dragover': _onDragOver,
+          'dragleave': _onDragLeave,
+          'drop': _onDrop,
+          'click': _onUploadZoneClick,
+        },
         attributes: const {
           'style':
               'border: 2px dashed #dbdbdb; border-radius: 6px; transition: all 0.3s ease;',
@@ -217,10 +169,11 @@ class _UploadSectionState extends State<UploadSection> {
           ]),
 
           // Hidden file input
-          const input(
+          input(
             type: InputType.file,
             id: 'file-input',
-            attributes: {'multiple': 'true', 'style': 'display: none;'},
+            events: {'change': _onFileInputChange},
+            attributes: const {'multiple': 'true', 'style': 'display: none;'},
           ),
 
           // Curl command section
@@ -246,12 +199,18 @@ class _UploadSectionState extends State<UploadSection> {
                   },
                 ),
               ]),
-              const div(classes: 'control', [
+              div(classes: 'control', [
                 button(
                   classes: 'button is-info is-small',
                   id: 'copy-curl-btn',
-                  attributes: {'title': 'Copy to clipboard'},
-                  [
+                  events: {
+                    'click': (Event e) {
+                      e.stopPropagation();
+                      _copyCurlCommand();
+                    },
+                  },
+                  attributes: const {'title': 'Copy to clipboard'},
+                  const [
                     span(classes: 'icon is-small', [
                       i(classes: 'fas fa-clipboard', []),
                     ]),
