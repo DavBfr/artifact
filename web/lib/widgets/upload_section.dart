@@ -203,21 +203,21 @@ class _UploadSectionState extends State<UploadSection> {
           'style':
               'border: 2px dashed #dbdbdb; border-radius: 6px; transition: all 0.3s ease;',
         },
-        const [
-          div(classes: 'mb-4', [
+        [
+          const div(classes: 'mb-4', [
             span(classes: 'icon is-large has-text-info', [
               i(classes: 'fas fa-cloud-upload-alt fa-3x', []),
             ]),
           ]),
-          p(classes: 'title is-5 has-text-grey-dark mb-4', [
+          const p(classes: 'title is-5 has-text-grey-dark mb-4', [
             Component.text('Drop files here or click to browse'),
           ]),
-          p(classes: 'subtitle is-6 has-text-grey-light mb-6', [
+          const p(classes: 'subtitle is-6 has-text-grey-light mb-6', [
             Component.text('Supports multiple file uploads'),
           ]),
 
           // Hidden file input
-          input(
+          const input(
             type: InputType.file,
             id: 'file-input',
             attributes: {'multiple': 'true', 'style': 'display: none;'},
@@ -225,7 +225,7 @@ class _UploadSectionState extends State<UploadSection> {
 
           // Curl command section
           div(classes: 'box is-shadowless has-background-white-ter mt-4 p-3', [
-            p(classes: 'is-size-7 has-text-grey mb-2', [
+            const p(classes: 'is-size-7 has-text-grey mb-2', [
               span(classes: 'icon-text', [
                 span(classes: 'icon is-small', [
                   i(classes: 'fas fa-terminal', []),
@@ -238,14 +238,15 @@ class _UploadSectionState extends State<UploadSection> {
                 input(
                   type: InputType.text,
                   classes: 'input is-small is-family-monospace',
-                  attributes: {
+                  events: {'click': (Event e) => e.stopPropagation()},
+                  attributes: const {
                     'value':
                         'curl -H "Authorization: Bearer {token}" ... -F "file=@example.zip"',
                     'readonly': 'true',
                   },
                 ),
               ]),
-              div(classes: 'control', [
+              const div(classes: 'control', [
                 button(
                   classes: 'button is-info is-small',
                   id: 'copy-curl-btn',
