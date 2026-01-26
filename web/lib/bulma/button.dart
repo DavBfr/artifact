@@ -1,3 +1,4 @@
+import 'package:jaspr/dom.dart';
 import 'package:jaspr/jaspr.dart';
 
 import 'colors.dart';
@@ -46,9 +47,9 @@ class IconLabel extends StatelessComponent {
 
   @override
   Component build(BuildContext context) {
-    return fragment([
-      span(classes: 'icon', [i(classes: 'fas fa-$icon', [])]),
-      span([text(label)]),
+    return Component.fragment([
+      span(classes: 'icon', [i(classes: 'fas fa-$icon', const [])]),
+      span([Component.text(label)]),
     ]);
   }
 }

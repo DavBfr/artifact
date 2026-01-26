@@ -1,3 +1,4 @@
+import 'package:jaspr/dom.dart';
 import 'package:jaspr/jaspr.dart';
 
 import '../bulma/bulma.dart';
@@ -19,14 +20,17 @@ class StatsCard extends StatelessComponent {
 
     return BulmaLevel(classes: 'is-hidden-mobile', [
       BulmaLevelItem(
-        heading: text('Total Files'),
-        title: text(totalFiles.toString()),
+        heading: const Component.text('Total Files'),
+        title: Component.text(totalFiles.toString()),
       ),
       BulmaLevelItem(
-        heading: text('Total Size'),
-        title: text(formatBytes(totalSize)),
+        heading: const Component.text('Total Size'),
+        title: Component.text(formatBytes(totalSize)),
       ),
-      BulmaLevelItem(heading: text('Last Upload'), title: text(lastUpload)),
+      BulmaLevelItem(
+        heading: const Component.text('Last Upload'),
+        title: Component.text(lastUpload),
+      ),
     ]);
   }
 }

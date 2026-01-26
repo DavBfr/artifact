@@ -1,3 +1,4 @@
+import 'package:jaspr/dom.dart';
 import 'package:jaspr/jaspr.dart';
 
 class BulmaFooter extends StatelessComponent {
@@ -5,19 +6,19 @@ class BulmaFooter extends StatelessComponent {
 
   @override
   Component build(BuildContext context) {
-    return footer(classes: 'footer', [
+    return const footer(classes: 'footer', [
       div(classes: 'content has-text-centered', [
         p([
-          strong([text('Artifact Server')]),
-          text(' by '),
+          strong([Component.text('Artifact Server')]),
+          Component.text(' by '),
           a(href: 'https://hub.docker.com/r/davbfr/artifact', [
-            text('davbfr/artifact'),
+            Component.text('davbfr/artifact'),
           ]),
-          text('. The source code is licensed under '),
+          Component.text('. The source code is licensed under '),
           a(href: 'https://opensource.org/license/apache-2-0', [
-            text('APACHE 2.0'),
+            Component.text('APACHE 2.0'),
           ]),
-          text('.'),
+          Component.text('.'),
         ]),
       ]),
     ]);

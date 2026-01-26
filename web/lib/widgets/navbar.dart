@@ -1,4 +1,4 @@
-import 'package:jaspr/jaspr.dart' hide Spacing;
+import 'package:jaspr/jaspr.dart';
 
 import '../bulma/bulma.dart';
 import 'logo.dart';
@@ -19,10 +19,10 @@ class NavBar extends StatelessComponent {
   @override
   Component build(BuildContext context) {
     return BulmaNavBar([
-      BulmaNavbarBrand(
+      const BulmaNavbarBrand(
         children: [
-          const BulmaNavbarItem(child: Logo()),
-          BulmaNavbarItem(child: text('Artifact Server')),
+          BulmaNavbarItem(child: Logo()),
+          BulmaNavbarItem(child: Component.text('Artifact Server')),
         ],
       ),
 

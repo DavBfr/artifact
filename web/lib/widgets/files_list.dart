@@ -1,3 +1,4 @@
+import 'package:jaspr/dom.dart';
 import 'package:jaspr/jaspr.dart';
 
 import '../models/api_models.dart';
@@ -46,7 +47,7 @@ class _FilesListState extends State<FilesList> {
     return div(classes: 'has-background-white', [
       // Header with title and count
       nav(classes: 'level mb-4', [
-        div(classes: 'level-left', [
+        const div(classes: 'level-left', [
           div(classes: 'level-item', [
             div([
               p(classes: 'title is-4 mb-1', [
@@ -54,7 +55,7 @@ class _FilesListState extends State<FilesList> {
                   span(classes: 'icon has-text-primary', [
                     i(classes: 'fas fa-folder-open', []),
                   ]),
-                  span([text('Artifacts')]),
+                  span([Component.text('Artifacts')]),
                 ]),
               ]),
             ]),
@@ -63,7 +64,7 @@ class _FilesListState extends State<FilesList> {
         div(classes: 'level-right', [
           div(classes: 'level-item', [
             span(classes: 'tag is-info is-light is-medium', id: 'files-count', [
-              text(filesCount),
+              Component.text(filesCount),
             ]),
           ]),
         ]),
@@ -72,14 +73,14 @@ class _FilesListState extends State<FilesList> {
       // Files content
       if (prefilteredCount == 0)
         // No files message - improved empty state
-        div(id: 'no-files', classes: 'has-text-centered py-6', [
+        const div(id: 'no-files', classes: 'has-text-centered py-6', [
           div(classes: 'mb-5', [
             span(classes: 'icon is-large has-text-grey-lighter', [
               i(classes: 'fas fa-inbox fa-4x', []),
             ]),
           ]),
           p(classes: 'title is-4 has-text-grey-lighter mb-3', [
-            text('No artifacts'),
+            Component.text('No artifacts'),
           ]),
         ])
       else
@@ -90,14 +91,14 @@ class _FilesListState extends State<FilesList> {
             p(classes: 'control has-icons-left', [
               input(
                 classes: 'input',
-                attributes: {'type': 'text', 'placeholder': 'Search'},
+                attributes: const {'type': 'text', 'placeholder': 'Search'},
                 events: events(
                   onInput: (String e) {
                     setState(() => query = e);
                   },
                 ),
               ),
-              span(classes: 'icon is-left', [
+              const span(classes: 'icon is-left', [
                 i(
                   classes: 'fas fa-search',
                   attributes: {'aria-hidden': 'true'},
@@ -112,13 +113,13 @@ class _FilesListState extends State<FilesList> {
             a(
               href: 'javascript:void(0);',
               classes: 'panel-block',
-              attributes: {'style': 'cursor: default;'},
+              attributes: const {'style': 'cursor: default;'},
               [
                 (file.mimeType.startsWith('image/') && file.size < 500 * 1024)
                     ? img(
                         src: file.url,
                         alt: '',
-                        attributes: {
+                        attributes: const {
                           'style':
                               'width:48px;height:48px;object-fit:cover;border-radius:4px;',
                         },
@@ -126,16 +127,16 @@ class _FilesListState extends State<FilesList> {
                       )
                     : span(
                         classes: 'panel-icon mr-4',
-                        attributes: {
+                        attributes: const {
                           'style': 'font-size: 40px; margin-left:4px;',
                         },
-                        [i(classes: file.iconClass, [])],
+                        [i(classes: file.iconClass, const [])],
                       ),
                 // File main column: name and small metadata stacked
                 div([
-                  div([text(file.name)]),
+                  div([Component.text(file.name)]),
                   div(classes: 'is-size-7 has-text-grey', [
-                    text(
+                    Component.text(
                       '${formatTimeAgo(file.modified)} • ${formatBytes(file.size)}',
                     ),
                   ]),
@@ -145,19 +146,19 @@ class _FilesListState extends State<FilesList> {
                   a(
                     href: file.url,
                     classes: 'button is-small is-primary is-light mr-2',
-                    attributes: {'download': ''},
-                    [
+                    attributes: const {'download': ''},
+                    const [
                       span(classes: 'icon', [
                         i(classes: 'fas fa-download', []),
                       ]),
-                      span([text('Download')]),
+                      span([Component.text('Download')]),
                     ],
                   ),
                   if (component.isAuthenticated)
                     button(
                       classes: 'button is-small is-danger is-light',
                       onClick: () => component.onDelete(file.name),
-                      [
+                      const [
                         span(classes: 'icon', [
                           i(classes: 'fas fa-trash-alt', []),
                         ]),

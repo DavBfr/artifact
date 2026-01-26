@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:jaspr/dom.dart';
 import 'package:jaspr/jaspr.dart';
 
 /// Internal wrapper for dialogs with unique IDs
@@ -22,11 +23,11 @@ class _DialogItem<T> extends StatelessComponent {
       div(
         classes: 'modal-background',
         events: isDismissible ? {'click': (_) => onComplete()} : {},
-        [],
+        const [],
       ),
       div(
         classes: 'modal-card',
-        attributes: {'style': 'width: 90%; max-width: 540px;'},
+        attributes: const {'style': 'width: 90%; max-width: 540px;'},
         [child],
       ),
     ]);
@@ -106,7 +107,7 @@ class DialogManagerState extends State<DialogManagerProvider> {
     return DialogManager(
       state: this,
       child: div(
-        attributes: {'style': 'position: relative'},
+        attributes: const {'style': 'position: relative'},
         [component.child, ..._dialogs],
       ),
     );
