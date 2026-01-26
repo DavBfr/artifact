@@ -186,7 +186,7 @@ class _UploadSectionState extends State<UploadSection> {
               ]),
               span([
                 Component.text(
-                  'Max: ${formatBytes(component.maxContentLength)}',
+                  'Max file size: ${formatBytes(component.maxContentLength)}',
                 ),
               ]),
             ]),
