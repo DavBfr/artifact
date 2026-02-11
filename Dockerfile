@@ -50,7 +50,7 @@ ARG TARGETARCH
 ARG CSP_VERSION=v0.1.3
 
 # Install build dependencies
-RUN apk add --no-cache git curl
+RUN apk add --no-cache git curl ca-certificates
 
 RUN curl -fsSL "https://github.com/DavBfr/csp/releases/download/${CSP_VERSION}/csp_linux_${TARGETARCH}.tar.gz" | tar -xz -C /usr/local/bin csp
 
@@ -66,14 +66,20 @@ RUN go mod download
 # Copy source code from server directory
 COPY server/ ./
 
+COPY --from=web_builder /app/dist/ /output/app/static/
+
 # Build the application
 RUN \
-    --mount=type=bind,from=web_builder,target=/web \
-    CSP_HASHED=$(csp -csp "default-src 'none'; script-src 'self'; style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self'; font-src 'self' https://cdnjs.cloudflare.com; connect-src 'self'; frame-src 'none'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; media-src 'self'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests; style-src-attr 'unsafe-inline'" -include-external -heuristics $(find /web/app/dist/ -name '*.html' -print)) && \
+    CSP_HASHED=$(csp -csp "default-src 'none'; script-src 'self'; style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self'; font-src 'self' https://cdnjs.cloudflare.com; connect-src 'self'; frame-src 'none'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; media-src 'self'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests; style-src-attr 'unsafe-inline'" -include-external -heuristics $(find /output/app/static -name '*.html' -print)) && \
     CGO_ENABLED=0 GOOS=linux go build -a -ldflags "-extldflags \"-static\" -s -w -X \"main.cspHeader=${CSP_HASHED}\"" -installsuffix cgo -o upload_server .
 
+RUN \
+    mkdir -p /output/var/uploads &&\
+    chown 10001:10001 /output/var/uploads &&\
+    mv upload_server /output/app/
+
 # Final stage - minimal Alpine Linux
-FROM alpine:latest
+FROM scratch
 
 LABEL org.opencontainers.image.vendor="NfetDotNet"
 LABEL org.opencontainers.image.authors="dev.nfet.net@gmail.com"
@@ -82,27 +88,16 @@ LABEL org.opencontainers.image.title="Artifact Server"
 LABEL org.opencontainers.image.description="A simple file upload server with web interface."
 
 # Install ca-certificates for HTTPS support
-RUN apk --no-cache add ca-certificates
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-# Create app user for security
-RUN addgroup -g 1000 appuser && \
-    adduser -D -u 1000 -G appuser appuser
+# Copy the built Go binary from builder
+COPY --from=builder /output /
 
 # Set working directory
 WORKDIR /app
 
-# Copy the built Go binary from builder
-COPY --from=builder /build/upload_server /app/upload_server
-
-# Copy the built web files
-COPY --from=web_builder /app/dist/ ./static/
-
-# Create uploads directory and set permissions
-RUN mkdir -p /var/uploads && \
-    chown -R appuser:appuser /var/uploads /app
-
 # Switch to non-root user
-USER appuser
+USER 10001
 
 # Expose port 8080
 EXPOSE 8080
