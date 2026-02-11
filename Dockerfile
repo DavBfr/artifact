@@ -1,24 +1,3 @@
-# Multi-stage build for Go application (standalone, no nginx)
-FROM golang:alpine AS builder
-
-# Install build dependencies
-RUN apk add --no-cache git
-
-# Set working directory
-WORKDIR /build
-
-# Copy go mod files from server directory
-COPY server/go.mod server/go.sum* ./
-
-# Download dependencies
-RUN go mod download
-
-# Copy source code from server directory
-COPY server/ ./
-
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o upload_server .
-
 FROM ghcr.io/cirruslabs/flutter:stable AS web_builder
 
 # Set working directory
@@ -64,6 +43,34 @@ RUN \
     --remove-descriptive-elements --shorten-ids --indent=none \
     -i $f -o dist/$base; \
     done
+
+FROM golang:alpine AS builder
+
+ARG TARGETARCH
+ARG CSP_VERSION=v0.1.3
+
+# Install build dependencies
+RUN apk add --no-cache git curl
+
+RUN curl -fsSL "https://github.com/DavBfr/csp/releases/download/${CSP_VERSION}/csp_linux_${TARGETARCH}.tar.gz" | tar -xz -C /usr/local/bin csp
+
+# Set working directory
+WORKDIR /build
+
+# Copy go mod files from server directory
+COPY server/go.mod server/go.sum* ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code from server directory
+COPY server/ ./
+
+# Build the application
+RUN \
+    --mount=type=bind,from=web_builder,target=/web \
+    CSP_HASHED=$(csp -csp "default-src 'none'; script-src 'self'; style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self'; font-src 'self' https://cdnjs.cloudflare.com; connect-src 'self'; frame-src 'none'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; media-src 'self'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests; style-src-attr 'unsafe-inline'" -include-external -heuristics $(find /web/app/dist/ -name '*.html' -print)) && \
+    CGO_ENABLED=0 GOOS=linux go build -a -ldflags "-extldflags \"-static\" -s -w -X \"main.cspHeader=${CSP_HASHED}\"" -installsuffix cgo -o upload_server .
 
 # Final stage - minimal Alpine Linux
 FROM alpine:latest

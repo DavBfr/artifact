@@ -39,6 +39,9 @@ func main() {
 	// Apply CORS middleware to all routes
 	r.Use(corsMiddleware)
 
+	// Apply security headers middleware to all routes
+	r.Use(securityHeaders)
+
 	// API Routes - all under /api/ prefix
 	r.HandleFunc("/api/health", healthCheckHandler).Methods("GET")
 	r.HandleFunc("/api/files", listFilesHandler).Methods("GET")

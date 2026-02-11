@@ -54,6 +54,11 @@ func serveFileHandler(w http.ResponseWriter, r *http.Request) {
 		_, _ = file.Seek(0, 0)
 	}
 
+	// Check if content type is dangerous and serve as binary instead
+	if isDangerousContentType(contentType) {
+		contentType = "application/octet-stream"
+	}
+
 	if contentType != "" {
 		w.Header().Set("Content-Type", contentType)
 	}
@@ -66,4 +71,37 @@ func serveFileHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Serve the file with proper support for ranges and conditional requests
 	http.ServeContent(w, r, filename, stat.ModTime(), file)
+}
+
+// isDangerousContentType checks if a content type could be harmful if executed in a browser
+func isDangerousContentType(contentType string) bool {
+	// List of potentially dangerous content types that should be served as binary
+	dangerousTypes := []string{
+		"text/javascript",
+		"application/javascript",
+		"application/x-javascript",
+		"text/html",
+		"application/html",
+		"text/xml",
+		"application/xml",
+		"application/xhtml+xml",
+		"image/svg+xml",
+		"application/vnd.ms-excel",
+		"application/x-msexcel",
+		"application/x-excel",
+		"application/x-mspowerpoint",
+		"application/powerpoint",
+		"application/x-powerpoint",
+		"application/vnd.ms-powerpoint",
+		"application/vnd.openxmlformats-officedocument",
+		"application/x-zip-compressed",
+		"application/zip",
+	}
+
+	for _, dangerous := range dangerousTypes {
+		if strings.HasPrefix(strings.ToLower(contentType), strings.ToLower(dangerous)) {
+			return true
+		}
+	}
+	return false
 }
