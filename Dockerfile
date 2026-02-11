@@ -47,7 +47,7 @@ RUN \
 FROM golang:alpine AS builder
 
 ARG TARGETARCH
-ARG CSP_VERSION=v0.1.3
+ARG CSP_VERSION=v0.1.5
 
 # Install build dependencies
 RUN apk add --no-cache git curl ca-certificates
@@ -70,7 +70,11 @@ COPY --from=web_builder /app/dist/ /output/app/static/
 
 # Build the application
 RUN \
-    CSP_HASHED=$(csp -csp "default-src 'none'; script-src 'self'; style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; img-src 'self'; font-src 'self' https://cdnjs.cloudflare.com; connect-src 'self'; frame-src 'none'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; media-src 'self'; manifest-src 'self'; worker-src 'self'; upgrade-insecure-requests; style-src-attr 'unsafe-inline'" -include-external -heuristics $(find /output/app/static -name '*.html' -print)) && \
+    CSP_HASHED=$(csp -include-external -heuristics \
+    -add-font-src "https://cdnjs.cloudflare.com" \
+    -add-style-src "https://cdnjs.cloudflare.com https://cdn.jsdelivr.net" \
+    -add-style-src-attr "'unsafe-inline'" \
+    $(find /output/app/static -name '*.html' -print)) && \
     CGO_ENABLED=0 GOOS=linux go build -a -ldflags "-extldflags \"-static\" -s -w -X \"main.cspHeader=${CSP_HASHED}\"" -installsuffix cgo -o upload_server .
 
 RUN \
