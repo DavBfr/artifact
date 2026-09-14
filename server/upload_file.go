@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -20,8 +21,12 @@ type UploadResponse struct {
 func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	// Parse multipart form with max memory
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
+	// Use the raw multipart reader instead of ParseMultipartForm/FormFile: the
+	// latter spills large parts to disk via os.TempDir() ("/tmp"), which does
+	// not exist in our scratch-based container image. Streaming the part
+	// directly to the destination file avoids relying on a temp directory.
+	reader, err := r.MultipartReader()
+	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(UploadResponse{
 			Success: false,
@@ -30,8 +35,28 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file, handler, err := r.FormFile("file")
-	if err != nil {
+	var part *multipart.Part
+	for {
+		p, err := reader.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(UploadResponse{
+				Success: false,
+				Error:   "Failed to parse form: " + err.Error(),
+			})
+			return
+		}
+		if p.FormName() == "file" {
+			part = p
+			break
+		}
+		p.Close()
+	}
+
+	if part == nil {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(UploadResponse{
 			Success: false,
@@ -39,9 +64,9 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	defer file.Close()
+	defer part.Close()
 
-	if handler.Filename == "" {
+	if part.FileName() == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(UploadResponse{
 			Success: false,
@@ -50,18 +75,8 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check file size
-	if handler.Size > maxContentLength {
-		w.WriteHeader(http.StatusRequestEntityTooLarge)
-		json.NewEncoder(w).Encode(UploadResponse{
-			Success: false,
-			Error:   fmt.Sprintf("File too large. Maximum size is %d bytes", maxContentLength),
-		})
-		return
-	}
-
 	// Secure the filename (basic version)
-	filename := filepath.Base(filepath.Clean(handler.Filename))
+	filename := filepath.Base(filepath.Clean(part.FileName()))
 	destPath := filepath.Join(uploadFolder, filename)
 
 	// Check if file already exists
@@ -82,13 +97,28 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer dst.Close()
 
-	// Copy file with chunked reading for efficient memory usage
+	// Copy file with chunked reading for efficient memory usage, enforcing the
+	// max size limit since the part's size isn't known ahead of time.
 	buffer := make([]byte, chunkSize)
-	if _, err := io.CopyBuffer(dst, file, buffer); err != nil {
+	limitedReader := io.LimitReader(part, maxContentLength+1)
+	written, err := io.CopyBuffer(dst, limitedReader, buffer)
+	if err != nil {
+		dst.Close()
+		os.Remove(destPath)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(UploadResponse{
 			Success: false,
 			Error:   "Failed to save file: " + err.Error(),
+		})
+		return
+	}
+	if written > maxContentLength {
+		dst.Close()
+		os.Remove(destPath)
+		w.WriteHeader(http.StatusRequestEntityTooLarge)
+		json.NewEncoder(w).Encode(UploadResponse{
+			Success: false,
+			Error:   fmt.Sprintf("File too large. Maximum size is %d bytes", maxContentLength),
 		})
 		return
 	}
