@@ -10,6 +10,7 @@ import 'auth_dialog.dart';
 import 'files_list.dart';
 import 'key_listener.dart';
 import 'loading.dart';
+import 'logo.dart';
 import 'navbar.dart';
 import 'stats_card.dart';
 import 'upload_section.dart';
@@ -26,6 +27,7 @@ class AppState extends State<App> {
   late ArtifactApiClient _api;
   ConfigResponse? _config;
   List<FileInfo>? _files;
+  bool _listingRestricted = false;
   var _altPressed = false;
   bool _isUploading = false;
   String? _uploadingFileName;
@@ -84,12 +86,14 @@ class AppState extends State<App> {
       final filesResponse = await _api.listFiles();
       setState(() {
         _files = filesResponse.files;
+        _listingRestricted = false;
       });
     } on AuthenticationException {
       // Listing disabled for unauthenticated users (ART_NO_LISTING) - show an
       // empty list instead of leaving the UI stuck loading forever.
       setState(() {
         _files = [];
+        _listingRestricted = true;
       });
     } catch (e) {
       setState(() {
@@ -143,6 +147,8 @@ class AppState extends State<App> {
 
         if (_files == null)
           const MyLoading()
+        else if (_listingRestricted && !_api.isAuthenticated)
+          _buildRestrictedView()
         else ...[
           // Stats
           StatsCard(files: _files!),
@@ -170,6 +176,24 @@ class AppState extends State<App> {
         // Footer
         // const BulmaFooter(),
       ]),
+    );
+  }
+
+  /// Minimal view shown when listing is restricted (ART_NO_LISTING) and the
+  /// user isn't authenticated: just the logo and server name, nothing else.
+  Component _buildRestrictedView() {
+    return div(
+      styles: Styles(
+        display: Display.flex,
+        flexDirection: FlexDirection.column,
+        alignItems: AlignItems.center,
+        justifyContent: JustifyContent.center,
+        padding: Padding.symmetric(vertical: 6.em),
+      ),
+      const [
+        Logo(size: 160),
+        div(classes: 'title mt-4', [Component.text('Artifact Server')]),
+      ],
     );
   }
 

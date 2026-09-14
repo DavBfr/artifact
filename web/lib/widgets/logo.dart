@@ -2,10 +2,15 @@ import 'package:jaspr/dom.dart';
 import 'package:jaspr/jaspr.dart';
 
 class Logo extends StatelessComponent {
-  const Logo({super.key});
+  const Logo({this.size = 38, super.key});
+
+  final int size;
 
   @override
   Component build(BuildContext context) {
-    return const img(src: 'logo.svg', attributes: {'width': '38', 'height': '38'});
+    return img(
+      src: 'logo.svg',
+      attributes: {'width': '$size', 'height': '$size'},
+    );
   }
 }
