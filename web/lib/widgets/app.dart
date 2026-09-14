@@ -129,6 +129,7 @@ class AppState extends State<App> {
         NavBar(
           isAuthenticated: _api.isAuthenticated,
           altPressed: _altPressed,
+          showTitleAndRefresh: !(_listingRestricted && !_api.isAuthenticated),
           onAuthToggle: (value) async {
             if (value) {
               await _login();
@@ -188,7 +189,7 @@ class AppState extends State<App> {
         flexDirection: FlexDirection.column,
         alignItems: AlignItems.center,
         justifyContent: JustifyContent.center,
-        padding: Padding.symmetric(vertical: 6.em),
+        minHeight: 70.vh,
       ),
       const [
         Logo(size: 160),

@@ -9,20 +9,24 @@ class NavBar extends StatelessComponent {
     required this.onAuthToggle,
     required this.onRefresh,
     this.altPressed = false,
+    this.showTitleAndRefresh = false,
     super.key,
   });
   final bool isAuthenticated;
   final void Function(bool value) onAuthToggle;
   final void Function() onRefresh;
   final bool altPressed;
+  final bool showTitleAndRefresh;
 
   @override
   Component build(BuildContext context) {
     return BulmaNavBar([
-      const BulmaNavbarBrand(
+      BulmaNavbarBrand(
         children: [
-          BulmaNavbarItem(child: Logo()),
-          BulmaNavbarItem(child: Component.text('Artifact Server')),
+          if (showTitleAndRefresh) ...[
+            const BulmaNavbarItem(child: Logo()),
+            const BulmaNavbarItem(child: Component.text('Artifact Server')),
+          ],
         ],
       ),
 
@@ -48,12 +52,13 @@ class NavBar extends StatelessComponent {
             ),
           ),
 
-        BulmaNavbarItem(
-          child: BulmaButton(
-            child: const IconLabel(icon: 'refresh', label: 'Refresh'),
-            onPressed: onRefresh,
+        if (showTitleAndRefresh)
+          BulmaNavbarItem(
+            child: BulmaButton(
+              child: const IconLabel(icon: 'refresh', label: 'Refresh'),
+              onPressed: onRefresh,
+            ),
           ),
-        ),
       ]),
     ]);
   }
