@@ -19,6 +19,15 @@ type DeleteResponse struct {
 func deleteFileHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	if appendOnly {
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(DeleteResponse{
+			Success: false,
+			Error:   "Deletion is disabled (append-only mode).",
+		})
+		return
+	}
+
 	vars := mux.Vars(r)
 	filename := vars["filename"]
 

@@ -82,6 +82,14 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	// Check if file already exists
 	replaced := false
 	if _, err := os.Stat(destPath); err == nil {
+		if appendOnly {
+			w.WriteHeader(http.StatusConflict)
+			json.NewEncoder(w).Encode(UploadResponse{
+				Success: false,
+				Error:   "File already exists. Overwriting is disabled (append-only mode).",
+			})
+			return
+		}
 		replaced = true
 	}
 

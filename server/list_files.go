@@ -23,6 +23,14 @@ type ListFilesResponse struct {
 	Error   string     `json:"error,omitempty"`
 }
 
+func listFilesRouteHandler(w http.ResponseWriter, r *http.Request) {
+	if noListing {
+		requireToken(listFilesHandler)(w, r)
+		return
+	}
+	listFilesHandler(w, r)
+}
+
 func listFilesHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 

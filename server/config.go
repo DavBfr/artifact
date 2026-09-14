@@ -15,6 +15,9 @@ var (
 	maxContentLength int64
 	apiToken         string
 	staticFolder     string
+	webPortal        bool
+	noListing        bool
+	appendOnly       bool
 )
 
 type ConfigResponse struct {

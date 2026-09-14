@@ -44,6 +44,10 @@ Press `alt` to reveal the login button.
 | `ART_UPLOAD_FOLDER` | Directory to store uploaded files                                  | `/var/uploads` |
 | `ART_STATIC_FOLDER` | Directory for static web files                                     | `/app/static`  |
 | `ART_MAX_FILE_SIZE` | Maximum file size (e.g., "100M", "1G")                             | `100M`         |
+| `ART_WEB_PORTAL`    | Serve the web interface. `false` disables it entirely (404s)       | `true`         |
+| `ART_NO_LISTING`    | `true` requires a valid API token to call `GET /api/files`         | `false`        |
+| `ART_APPEND_ONLY`   | `true` disables overwriting existing files and all deletions       | `false`        |
+
 
 ### Volume Mounts
 
@@ -134,6 +138,8 @@ Authorization: Bearer your-token-here
 - **Non-root User**: Container runs as non-root user (UID 1000)
 - **Read-only Downloads**: Public download endpoint (no authentication needed)
 - **CORS Enabled**: Supports cross-origin requests for web applications
+- **Append-only Mode**: Set `ART_APPEND_ONLY=true` to prevent overwriting or deleting existing files
+- **Private Listing**: Set `ART_NO_LISTING=true` to require authentication for `GET /api/files`
 
 ## Architecture
 

@@ -49,10 +49,15 @@ class ArtifactApiClient {
 
   /// List all files
   Future<ListFilesResponse> listFiles() async {
-    final response = await http.get(Uri.parse('$baseUrl/api/files'));
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/files'),
+      headers: _headers,
+    );
 
     if (response.statusCode == 200) {
       return ListFilesResponse.fromJson(jsonDecode(response.body));
+    } else if (response.statusCode == 401) {
+      throw AuthenticationException('Authentication required to list files');
     } else {
       throw ApiException(
         'Failed to list files',

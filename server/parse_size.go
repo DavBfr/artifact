@@ -5,6 +5,16 @@ import (
 	"strings"
 )
 
+func parseBool(s string, defaultValue bool) bool {
+	if s == "" {
+		return defaultValue
+	}
+	if value, err := strconv.ParseBool(strings.TrimSpace(s)); err == nil {
+		return value
+	}
+	return defaultValue
+}
+
 func parseSize(s string, defaultSize int64) int64 {
 	if s == "" {
 		return defaultSize

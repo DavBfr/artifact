@@ -17,6 +17,9 @@ services:
     environment:
       - ART_API_TOKEN
       - ART_MAX_FILE_SIZE
+      - ART_WEB_PORTAL
+      - ART_NO_LISTING
+      - ART_APPEND_ONLY
     restart: unless-stopped
     ports:
       - "9080:8080"

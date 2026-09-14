@@ -28,6 +28,10 @@ func main() {
 
 	apiToken = os.Getenv("ART_API_TOKEN")
 
+	webPortal = parseBool(os.Getenv("ART_WEB_PORTAL"), true)
+	noListing = parseBool(os.Getenv("ART_NO_LISTING"), false)
+	appendOnly = parseBool(os.Getenv("ART_APPEND_ONLY"), false)
+
 	// Ensure upload directory exists
 	if err := os.MkdirAll(uploadFolder, 0755); err != nil {
 		log.Fatalf("Failed to create upload directory: %v", err)
@@ -44,7 +48,7 @@ func main() {
 
 	// API Routes - all under /api/ prefix
 	r.HandleFunc("/api/health", healthCheckHandler).Methods("GET")
-	r.HandleFunc("/api/files", listFilesHandler).Methods("GET")
+	r.HandleFunc("/api/files", listFilesRouteHandler).Methods("GET")
 	r.HandleFunc("/api/config", requireToken(getConfigHandler)).Methods("GET")
 	r.HandleFunc("/api/upload", requireToken(uploadFileHandler)).Methods("POST")
 	r.HandleFunc("/api/delete/{filename}", requireToken(deleteFileHandler)).Methods("DELETE")
@@ -53,7 +57,12 @@ func main() {
 	// Static files served as fallback (no /static/ prefix)
 	// Check if static folder and index.html exist
 	indexPath := filepath.Join(staticFolder, "index.html")
-	if stat, err := os.Stat(staticFolder); err == nil && stat.IsDir() {
+	if !webPortal {
+		log.Printf("Web portal disabled via ART_WEB_PORTAL (returning 404)")
+		r.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.NotFound(w, r)
+		})
+	} else if stat, err := os.Stat(staticFolder); err == nil && stat.IsDir() {
 		if _, err := os.Stat(indexPath); err == nil {
 			// Serve static files from root, falling back for any non-API routes
 			fileServer := http.FileServer(http.Dir(staticFolder))

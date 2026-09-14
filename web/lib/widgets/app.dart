@@ -80,10 +80,28 @@ class AppState extends State<App> {
       }
     }
 
-    final filesResponse = await _api.listFiles();
-    setState(() {
-      _files = filesResponse.files;
-    });
+    try {
+      final filesResponse = await _api.listFiles();
+      setState(() {
+        _files = filesResponse.files;
+      });
+    } on AuthenticationException {
+      // Listing disabled for unauthenticated users (ART_NO_LISTING) - show an
+      // empty list instead of leaving the UI stuck loading forever.
+      setState(() {
+        _files = [];
+      });
+    } catch (e) {
+      setState(() {
+        _files = [];
+      });
+      NotificationMessenger.of(context).showNotification(
+        BulmaNotification.error(
+          'Failed to load file list. Please try again.',
+          title: 'Error',
+        ),
+      );
+    }
   }
 
   @override
