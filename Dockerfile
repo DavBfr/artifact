@@ -78,8 +78,8 @@ RUN \
     CGO_ENABLED=0 GOOS=linux go build -a -ldflags "-extldflags \"-static\" -s -w -X \"main.cspHeader=${CSP_HASHED}\"" -installsuffix cgo -o upload_server .
 
 RUN \
-    mkdir -p /output/var/uploads /output/var/db &&\
-    chown 10001:10001 /output/var/uploads /output/var/db &&\
+    mkdir -p /output/var/uploads &&\
+    chown 10001:10001 /output/var/uploads &&\
     mv upload_server /output/app/
 
 # Final stage - minimal Alpine Linux
@@ -108,7 +108,6 @@ EXPOSE 8080
 
 # Set environment variables
 ENV ART_UPLOAD_FOLDER=/var/uploads
-ENV ART_DB_FOLDER=/var/db
 ENV ART_STATIC_FOLDER=/app/static
 ENV ART_PORT=8080
 

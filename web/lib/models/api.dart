@@ -47,12 +47,22 @@ class ArtifactApiClient {
     }
   }
 
-  /// List all files
-  Future<ListFilesResponse> listFiles() async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/api/files'),
-      headers: _headers,
+  /// List files, with server-side pagination and search filtering. Always
+  /// ordered newest-first, matching the UI's fixed sort policy.
+  Future<ListFilesResponse> listFiles({
+    int limit = 50,
+    int offset = 0,
+    String search = '',
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/files').replace(
+      queryParameters: {
+        'limit': '$limit',
+        'offset': '$offset',
+        'order': '-date',
+        if (search.isNotEmpty) 'search': search,
+      },
     );
+    final response = await http.get(uri, headers: _headers);
 
     if (response.statusCode == 200) {
       return ListFilesResponse.fromJson(jsonDecode(response.body));
@@ -80,6 +90,25 @@ class ArtifactApiClient {
     } else {
       throw ApiException(
         'Failed to get config',
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
+  /// Get aggregate file stats (total files, total size, last upload)
+  Future<StatsResponse> getStats() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/stats'),
+      headers: _headers,
+    );
+
+    if (response.statusCode == 200) {
+      return StatsResponse.fromJson(jsonDecode(response.body));
+    } else if (response.statusCode == 401) {
+      throw AuthenticationException('Authentication required to get stats');
+    } else {
+      throw ApiException(
+        'Failed to get stats',
         statusCode: response.statusCode,
       );
     }
@@ -179,13 +208,14 @@ class ArtifactApiClient {
     return completer.future;
   }
 
-  Future<DeleteResponse> deleteFile(String fileName) async {
+  /// Delete a file by its short link slug (the id in `/s/{slug}`)
+  Future<DeleteResponse> deleteFile(String slug) async {
     if (authToken == null || authToken!.isEmpty) {
       throw AuthenticationException('Authentication token required');
     }
 
     final response = await http.delete(
-      Uri.parse('$baseUrl/api/delete/${Uri.encodeComponent(fileName)}'),
+      Uri.parse('$baseUrl/api/delete/${Uri.encodeComponent(slug)}'),
       headers: _headers,
     );
 
@@ -194,7 +224,7 @@ class ArtifactApiClient {
     } else if (response.statusCode == 401) {
       throw AuthenticationException('Invalid authentication token');
     } else if (response.statusCode == 404) {
-      throw FileNotFoundException('File not found: $fileName');
+      throw FileNotFoundException('File not found: $slug');
     } else {
       final data = jsonDecode(response.body);
       throw ApiException(

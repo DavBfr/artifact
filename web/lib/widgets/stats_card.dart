@@ -6,17 +6,15 @@ import '../models/api_models.dart';
 import '../utils/formatters.dart';
 
 class StatsCard extends StatelessComponent {
-  const StatsCard({required this.files, super.key});
+  const StatsCard({required this.stats, super.key});
 
-  final List<FileInfo> files;
+  final StatsResponse? stats;
 
   @override
   Component build(BuildContext context) {
-    final totalFiles = files.length;
-    final totalSize = files.fold<int>(0, (sum, file) => sum + file.size);
-    final lastUpload = files.isNotEmpty
-        ? formatTimeAgo(files.first.modified)
-        : 'Never';
+    final totalFiles = stats?.totalFiles ?? 0;
+    final totalSize = stats?.totalSize ?? 0;
+    final lastUpload = stats?.lastUpload;
 
     return BulmaLevel(classes: 'is-hidden-mobile', [
       BulmaLevelItem(
@@ -29,7 +27,11 @@ class StatsCard extends StatelessComponent {
       ),
       BulmaLevelItem(
         heading: const Component.text('Last Upload'),
-        title: Component.text(lastUpload),
+        title: Component.text(
+          lastUpload == null || lastUpload.isEmpty
+              ? 'Never'
+              : formatTimeAgo(lastUpload),
+        ),
       ),
     ]);
   }

@@ -10,6 +10,7 @@ const (
 	defaultMaxFileSize  = 100 * 1024 * 1024 // 100MB
 	chunkSize           = 8 * 1024 * 1024   // 8MB chunks
 	defaultMaxListLimit = 500
+	dbFileName          = "artifact.db"
 )
 
 var (
@@ -20,7 +21,6 @@ var (
 	webPortal        bool
 	noListing        bool
 	appendOnly       bool
-	dbFolder         string
 	appDB            *sql.DB
 	maxListLimit     int
 )
@@ -28,6 +28,7 @@ var (
 type ConfigResponse struct {
 	Success          bool   `json:"success"`
 	MaxContentLength int64  `json:"max_content_length"`
+	MaxListLimit     int    `json:"max_list_limit"`
 	Error            string `json:"error,omitempty"`
 }
 
@@ -36,5 +37,6 @@ func getConfigHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(ConfigResponse{
 		Success:          true,
 		MaxContentLength: maxContentLength,
+		MaxListLimit:     maxListLimit,
 	})
 }

@@ -139,7 +139,7 @@ docker buildx bake --push  # Uses platforms from compose.yml
 ## API Authentication Model
 
 - **Public endpoints**: `/api/health`, `/api/files`, `/api/uploads/{filename}`
-- **Protected endpoints**: `/api/config`, `/api/upload`, `/api/delete/{filename}`
+- **Protected endpoints**: `/api/config`, `/api/upload`, `/api/delete/{slug}`
 - **Token validation**: `requireToken()` middleware checks `Authorization: Bearer <token>` header
 - **No token configured**: Server returns 401 if `ART_API_TOKEN` env var is empty
 - **Frontend behavior**: App loads file list publicly, hides upload/delete UI until authenticated
@@ -167,7 +167,7 @@ setState(() {
 ### File Operations
 
 - **Upload**: Multipart form with `file` field, returns `FileInfo` with URL
-- **Delete**: DELETE `/api/delete/{filename}` with auth
+- **Delete**: DELETE `/api/delete/{slug}` with auth (slug is the short link id, not the display filename)
 - **Download**: GET `/api/uploads/{filename}` (no auth required)
 - **List**: GET `/api/files` returns all files sorted by name
 

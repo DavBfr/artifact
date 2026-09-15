@@ -165,22 +165,67 @@ func findLiveRecordByName(db execer, displayName string) (*FileRecord, error) {
 	return &rec, nil
 }
 
+// orderByClause maps an "order" query param to a whitelisted ORDER BY
+// fragment - never build this from raw user input, to avoid SQL injection.
+func orderByClause(order string) string {
+	switch order {
+	case "name":
+		return "display_name ASC"
+	case "-name":
+		return "display_name DESC"
+	case "date":
+		return "modified ASC"
+	case "size":
+		return "size ASC"
+	case "-size":
+		return "size DESC"
+	default: // "-date" and anything unrecognized
+		return "modified DESC"
+	}
+}
+
+// escapeLikePattern escapes LIKE wildcard characters in a user-supplied
+// search term so they're matched literally.
+func escapeLikePattern(s string) string {
+	s = strings.ReplaceAll(s, "\\", "\\\\")
+	s = strings.ReplaceAll(s, "%", "\\%")
+	s = strings.ReplaceAll(s, "_", "\\_")
+	return s
+}
+
+// fileStats returns the live file count, summed size, and most recent
+// modification time (empty if there are no live files) - computed by sqlite
+// directly (COUNT/SUM/MAX) rather than in Go.
+func fileStats() (totalFiles int, totalSize int64, lastUpload string, err error) {
+	var lastUploadNull sql.NullString
+	err = appDB.QueryRow(
+		"SELECT COUNT(*), COALESCE(SUM(size), 0), MAX(modified) FROM files WHERE deleted = 0 AND pending = 0",
+	).Scan(&totalFiles, &totalSize, &lastUploadNull)
+	if err != nil {
+		return 0, 0, "", err
+	}
+	return totalFiles, totalSize, lastUploadNull.String, nil
+}
+
 // listLiveRecords returns up to limit non-deleted, non-pending records
-// starting at the offset-th live record (ordered newest-first by
-// modification time), plus the total live count - both computed by sqlite
-// directly (ORDER BY / LIMIT / OFFSET / COUNT(*)) rather than in Go.
-func listLiveRecords(offset, limit int) ([]FileRecord, int, error) {
-	var total int
-	if err := appDB.QueryRow("SELECT COUNT(*) FROM files WHERE deleted = 0 AND pending = 0").Scan(&total); err != nil {
-		return nil, 0, err
+// starting at the offset-th live record matching search (a substring match
+// against the display name), ordered per order - computed by sqlite directly
+// (WHERE / ORDER BY / LIMIT / OFFSET) rather than in Go. The caller pages
+// until it receives an empty result, so no total count is computed here.
+func listLiveRecords(offset, limit int, search, order string) ([]FileRecord, error) {
+	where := "WHERE deleted = 0 AND pending = 0"
+	var args []any
+	if search != "" {
+		where += " AND display_name LIKE ? ESCAPE '\\'"
+		args = append(args, "%"+escapeLikePattern(search)+"%")
 	}
 
 	rows, err := appDB.Query(
-		"SELECT "+recordColumns+" FROM files WHERE deleted = 0 AND pending = 0 ORDER BY modified DESC LIMIT ? OFFSET ?",
-		limit, offset,
+		"SELECT "+recordColumns+" FROM files "+where+" ORDER BY "+orderByClause(order)+" LIMIT ? OFFSET ?",
+		append(append([]any{}, args...), limit, offset)...,
 	)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -188,11 +233,11 @@ func listLiveRecords(offset, limit int) ([]FileRecord, int, error) {
 	for rows.Next() {
 		rec, err := scanRecord(rows)
 		if err != nil {
-			return nil, 0, err
+			return nil, err
 		}
 		records = append(records, rec)
 	}
-	return records, total, rows.Err()
+	return records, rows.Err()
 }
 
 // reserveUpload creates a new pending record for displayName and, unless
@@ -246,21 +291,25 @@ func abortUpload(slug string) error {
 	return err
 }
 
-// softDeleteByDisplayName marks the live record for displayName as deleted,
-// keeping the row (and its slug) around forever.
-func softDeleteByDisplayName(displayName string) (*FileRecord, error) {
+// softDeleteBySlug marks the live record for slug as deleted, keeping the row
+// (and its slug) around forever.
+func softDeleteBySlug(slug string) (*FileRecord, error) {
 	tx, err := appDB.Begin()
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
 
-	rec, err := findLiveRecordByName(tx, displayName)
+	row := tx.QueryRow(
+		"SELECT "+recordColumns+" FROM files WHERE slug = ? AND deleted = 0 AND pending = 0",
+		slug,
+	)
+	rec, err := scanRecord(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
-	}
-	if rec == nil {
-		return nil, nil
 	}
 	if _, err := tx.Exec("UPDATE files SET deleted = 1 WHERE slug = ?", rec.Slug); err != nil {
 		return nil, err
@@ -268,7 +317,7 @@ func softDeleteByDisplayName(displayName string) (*FileRecord, error) {
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
-	return rec, nil
+	return &rec, nil
 }
 
 func shortLinkHandler(w http.ResponseWriter, r *http.Request) {

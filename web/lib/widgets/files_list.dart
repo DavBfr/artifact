@@ -12,20 +12,28 @@ class FilesList extends StatefulComponent {
     required this.files,
     required this.isAuthenticated,
     required this.onDelete,
+    required this.searchQuery,
+    required this.onSearchChanged,
+    required this.hasMore,
+    required this.isLoadingMore,
+    required this.onLoadMore,
     super.key,
   });
 
   final List<FileInfo> files;
   final bool isAuthenticated;
-  final void Function(String) onDelete;
+  final void Function(FileInfo) onDelete;
+  final String searchQuery;
+  final void Function(String) onSearchChanged;
+  final bool hasMore;
+  final bool isLoadingMore;
+  final VoidCallback onLoadMore;
 
   @override
   State<FilesList> createState() => _FilesListState();
 }
 
 class _FilesListState extends State<FilesList> {
-  String query = '';
-
   void _copyShortLink(FileInfo file) {
     final shortLink = '${web.window.location.origin}${file.url}';
     web.window.navigator.clipboard.writeText(shortLink);
@@ -34,25 +42,15 @@ class _FilesListState extends State<FilesList> {
     );
   }
 
-  Iterable<FileInfo> get prefilteredFiles {
-    return component.isAuthenticated
-        ? component.files
-        : component.files.where((e) => !e.name.startsWith('.'));
-  }
-
-  Iterable<FileInfo> get filteredFiles {
-    if (query.isEmpty) return prefilteredFiles;
-    final q = query.toLowerCase();
-    return prefilteredFiles.where((f) => f.name.toLowerCase().contains(q));
-  }
-
   @override
   Component build(BuildContext context) {
-    final prefilteredCount = prefilteredFiles.length;
+    final visibleCount = component.files.length;
 
-    final filesCount = prefilteredCount == 0
+    // The server no longer reports a grand total (pagination stops once a
+    // page comes back empty), so this reflects files loaded so far.
+    final filesCount = visibleCount == 0
         ? 'No files'
-        : '$prefilteredCount file${prefilteredCount != 1 ? 's' : ''}';
+        : '$visibleCount file${visibleCount != 1 ? 's' : ''}${component.hasMore ? '+' : ''}';
 
     return div(classes: 'has-background-white', [
       // Header with title and count
@@ -81,7 +79,7 @@ class _FilesListState extends State<FilesList> {
       ]),
 
       // Files content
-      if (prefilteredCount == 0)
+      if (visibleCount == 0 && component.searchQuery.isEmpty)
         // No files message - improved empty state
         const div(id: 'no-files', classes: 'has-text-centered py-6', [
           div(classes: 'mb-5', [
@@ -96,16 +94,18 @@ class _FilesListState extends State<FilesList> {
       else
         // Bulma panel-style files list (panel heading, search, and panel-blocks)
         nav(classes: 'panel is-shadowless', [
-          // Search block
+          // Search block (server-side filter, debounced by the parent)
           div(classes: 'panel-block', [
             p(classes: 'control has-icons-left', [
               input(
                 classes: 'input',
-                attributes: const {'type': 'text', 'placeholder': 'Search'},
+                attributes: {
+                  'type': 'text',
+                  'placeholder': 'Search',
+                  'value': component.searchQuery,
+                },
                 events: events(
-                  onInput: (String e) {
-                    setState(() => query = e);
-                  },
+                  onInput: (String e) => component.onSearchChanged(e),
                 ),
               ),
               const span(classes: 'icon is-left', [
@@ -118,8 +118,8 @@ class _FilesListState extends State<FilesList> {
             ]),
           ]),
 
-          // File entries (filtered)
-          for (final file in filteredFiles) ...[
+          // File entries (current page)
+          for (final file in component.files) ...[
             a(
               href: 'javascript:void(0);',
               classes: 'panel-block',
@@ -175,7 +175,7 @@ class _FilesListState extends State<FilesList> {
                   if (component.isAuthenticated)
                     button(
                       classes: 'button is-small is-danger is-light',
-                      onClick: () => component.onDelete(file.name),
+                      onClick: () => component.onDelete(file),
                       const [
                         span(classes: 'icon', [
                           i(classes: 'fas fa-trash-alt', []),
@@ -186,6 +186,17 @@ class _FilesListState extends State<FilesList> {
               ],
             ),
           ],
+
+          if (component.hasMore)
+            div(classes: 'panel-block is-justify-content-center', [
+              button(
+                classes:
+                    'button is-small is-light'
+                    '${component.isLoadingMore ? ' is-loading' : ''}',
+                onClick: component.isLoadingMore ? () {} : component.onLoadMore,
+                const [Component.text('Load more')],
+              ),
+            ]),
         ]),
     ]);
   }

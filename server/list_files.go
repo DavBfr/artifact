@@ -17,7 +17,6 @@ type ListFilesResponse struct {
 	Success bool       `json:"success"`
 	Files   []FileInfo `json:"files"`
 	Count   int        `json:"count"`
-	Total   int        `json:"total"`
 	Error   string     `json:"error,omitempty"`
 }
 
@@ -42,8 +41,12 @@ func listFilesHandler(w http.ResponseWriter, r *http.Request) {
 		offset = 0
 	}
 
+	search := r.URL.Query().Get("search")
+	order := r.URL.Query().Get("order")
+
 	// The db is the single source of truth for listing - no directory scan.
-	records, total, err := listLiveRecords(offset, limit)
+	// The UI paginates until it receives an empty page, so no total count is returned.
+	records, err := listLiveRecords(offset, limit, search, order)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(ListFilesResponse{
@@ -62,6 +65,5 @@ func listFilesHandler(w http.ResponseWriter, r *http.Request) {
 		Success: true,
 		Files:   files,
 		Count:   len(files),
-		Total:   total,
 	})
 }

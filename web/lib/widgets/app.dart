@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:jaspr/dom.dart';
 import 'package:jaspr/jaspr.dart';
 import 'package:universal_web/web.dart' as web;
@@ -26,12 +28,26 @@ class App extends StatefulComponent {
 class AppState extends State<App> {
   late ArtifactApiClient _api;
   ConfigResponse? _config;
+  StatsResponse? _stats;
   List<FileInfo>? _files;
+  bool _hasMore = true;
+  String _searchQuery = '';
+  bool _isLoadingMore = false;
+  Timer? _searchDebounce;
   bool _listingRestricted = false;
   var _altPressed = false;
   bool _isUploading = false;
   String? _uploadingFileName;
   int _uploadProgress = 0;
+
+  // The page size we request per listFiles() call, capped server-side by
+  // ART_MAX_LIST_LIMIT (exposed via /api/config); falls back to a sane
+  // default before config has loaded or for unauthenticated users.
+  int get _pageSize {
+    const defaultPageSize = 50;
+    final max = _config?.maxListLimit ?? defaultPageSize;
+    return max > defaultPageSize ? defaultPageSize : max;
+  }
 
   @override
   void initState() {
@@ -83,9 +99,13 @@ class AppState extends State<App> {
     }
 
     try {
-      final filesResponse = await _api.listFiles();
+      final filesResponse = await _api.listFiles(
+        limit: _pageSize,
+        search: _searchQuery,
+      );
       setState(() {
         _files = filesResponse.files;
+        _hasMore = filesResponse.count == _pageSize;
         _listingRestricted = false;
       });
     } on AuthenticationException {
@@ -93,11 +113,13 @@ class AppState extends State<App> {
       // empty list instead of leaving the UI stuck loading forever.
       setState(() {
         _files = [];
+        _hasMore = false;
         _listingRestricted = true;
       });
     } catch (e) {
       setState(() {
         _files = [];
+        _hasMore = false;
       });
       NotificationMessenger.of(context).showNotification(
         BulmaNotification.error(
@@ -106,6 +128,57 @@ class AppState extends State<App> {
         ),
       );
     }
+
+    try {
+      final statsResponse = await _api.getStats();
+      setState(() => _stats = statsResponse);
+    } catch (e) {
+      // Stats are supplementary - leave the previous value rather than erroring the page.
+    }
+  }
+
+  /// Fetches the next page of results (server-side pagination) and appends it,
+  /// stopping once a page comes back short of a full page (count < limit).
+  Future<void> _loadMore() async {
+    final files = _files;
+    if (_isLoadingMore || files == null || !_hasMore) return;
+
+    setState(() => _isLoadingMore = true);
+    try {
+      final filesResponse = await _api.listFiles(
+        limit: _pageSize,
+        offset: files.length,
+        search: _searchQuery,
+      );
+      setState(() {
+        _files = [...files, ...filesResponse.files];
+        _hasMore = filesResponse.count == _pageSize;
+        _isLoadingMore = false;
+      });
+    } catch (e) {
+      setState(() => _isLoadingMore = false);
+      NotificationMessenger.of(context).showNotification(
+        BulmaNotification.error(
+          'Failed to load more files. Please try again.',
+          title: 'Error',
+        ),
+      );
+    }
+  }
+
+  /// Debounces the search box so we don't hit the API on every keystroke.
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      setState(() => _searchQuery = value);
+      _load();
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    super.dispose();
   }
 
   @override
@@ -152,7 +225,7 @@ class AppState extends State<App> {
           _buildRestrictedView()
         else ...[
           // Stats
-          StatsCard(files: _files!),
+          StatsCard(stats: _stats),
 
           if (_api.isAuthenticated && _config != null)
             UploadSection(
@@ -169,6 +242,11 @@ class AppState extends State<App> {
             files: _files!,
             isAuthenticated: _api.isAuthenticated,
             onDelete: _delete,
+            searchQuery: _searchQuery,
+            onSearchChanged: _onSearchChanged,
+            hasMore: _hasMore,
+            isLoadingMore: _isLoadingMore,
+            onLoadMore: _loadMore,
           ),
         ],
 
@@ -280,13 +358,13 @@ class AppState extends State<App> {
     await _load();
   }
 
-  Future<void> _delete(String file) async {
+  Future<void> _delete(FileInfo file) async {
     // Show confirmation dialog before deleting
     final result = await DialogManager.of(context).showDialog<bool>(
       (onComplete) => AlertDialog(
         title: const Component.text('Delete File'),
         content: [
-          Component.text('Are you sure you want to delete "$file"?'),
+          Component.text('Are you sure you want to delete "${file.name}"?'),
           const br(),
           const Component.text('This action cannot be undone.'),
         ],
@@ -311,18 +389,18 @@ class AppState extends State<App> {
     if (result != true) return;
 
     try {
-      await _api.deleteFile(file);
+      await _api.deleteFile(file.slug);
       await _load();
       NotificationMessenger.of(context).showNotification(
         BulmaNotification.success(
-          'File "$file" was deleted successfully.',
+          'File "${file.name}" was deleted successfully.',
           title: 'File Deleted',
         ),
       );
     } catch (e) {
       NotificationMessenger.of(context).showNotification(
         BulmaNotification.error(
-          'Failed to delete file "$file". Please try again.',
+          'Failed to delete file "${file.name}". Please try again.',
           title: 'Delete Failed',
         ),
       );

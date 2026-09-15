@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -29,10 +28,10 @@ func deleteFileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	vars := mux.Vars(r)
-	filename := filepath.Base(filepath.Clean(vars["filename"]))
+	slug := vars["slug"]
 
 	// Soft-delete: the row (and its slug) is kept forever so it can never be reused.
-	rec, err := softDeleteByDisplayName(filename)
+	rec, err := softDeleteBySlug(slug)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(DeleteResponse{
@@ -50,10 +49,16 @@ func deleteFileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The record is already marked deleted and will never be served again,
-	// so reclaiming the physical blob is best-effort.
+	// The record is already marked deleted (and will never be served again)
+	// regardless of what happens next, but the disk removal itself must
+	// actually succeed here - it's not best-effort.
 	if err := os.Remove(filepath.Join(uploadFolder, rec.StorageKey)); err != nil && !os.IsNotExist(err) {
-		log.Printf("Failed to remove deleted file %s: %v", rec.StorageKey, err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(DeleteResponse{
+			Success: false,
+			Error:   "Failed to remove file from disk: " + err.Error(),
+		})
+		return
 	}
 
 	json.NewEncoder(w).Encode(DeleteResponse{

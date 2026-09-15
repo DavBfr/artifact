@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"log"
 	"mime"
 	"os"
@@ -10,33 +9,12 @@ import (
 	"time"
 )
 
-// hasAnyRecords reports whether the db already holds at least one record
-// (live or deleted), used to detect a fresh db that predates this feature.
-func hasAnyRecords() (bool, error) {
-	var exists int
-	err := appDB.QueryRow("SELECT 1 FROM files LIMIT 1").Scan(&exists)
-	if err == sql.ErrNoRows {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	return true, nil
-}
-
-// importLegacyUploads is a one-time migration: if the db has no records yet,
-// any flat files already sitting in uploadFolder (from before the db-backed
-// model existed) are registered as records and moved into their slug-sharded
-// storage path.
+// importLegacyUploads is a one-time migration, run only when the sqlite db
+// didn't already exist: any flat files already sitting in uploadFolder (from
+// before the db-backed model existed) are registered as records and moved
+// into their slug-sharded storage path. The db file itself (and its -wal/-shm
+// sidecars, now that it lives in uploadFolder too) are skipped.
 func importLegacyUploads() error {
-	hasRecords, err := hasAnyRecords()
-	if err != nil {
-		return err
-	}
-	if hasRecords {
-		return nil
-	}
-
 	entries, err := os.ReadDir(uploadFolder)
 	if err != nil {
 		return err
@@ -44,7 +22,7 @@ func importLegacyUploads() error {
 
 	imported := 0
 	for _, entry := range entries {
-		if entry.IsDir() {
+		if entry.IsDir() || strings.HasPrefix(entry.Name(), dbFileName) {
 			continue
 		}
 		if err := importLegacyUpload(entry.Name()); err != nil {

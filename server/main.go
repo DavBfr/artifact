@@ -34,11 +34,6 @@ func main() {
 	noListing = parseBool(os.Getenv("ART_NO_LISTING"), false)
 	appendOnly = parseBool(os.Getenv("ART_APPEND_ONLY"), false)
 
-	dbFolder = os.Getenv("ART_DB_FOLDER")
-	if dbFolder == "" {
-		dbFolder = "/var/db"
-	}
-
 	maxListLimit = parseInt(os.Getenv("ART_MAX_LIST_LIMIT"), defaultMaxListLimit)
 	if maxListLimit <= 0 {
 		maxListLimit = defaultMaxListLimit
@@ -49,17 +44,19 @@ func main() {
 		log.Fatalf("Failed to create upload directory: %v", err)
 	}
 
-	// Ensure short link database directory exists
-	if err := os.MkdirAll(dbFolder, 0755); err != nil {
-		log.Fatalf("Failed to create db directory: %v", err)
-	}
+	// The sqlite db lives directly in uploadFolder (no separate volume). Its
+	// absence beforehand means this is a fresh db, so any pre-existing flat
+	// files should be adopted via the one-time legacy import.
+	dbPath := filepath.Join(uploadFolder, dbFileName)
+	_, statErr := os.Stat(dbPath)
+	dbIsNew := os.IsNotExist(statErr)
 
 	// Open the file record database. modernc.org/sqlite is pure Go (no CGO),
 	// matching this project's static/scratch build. SQLite only allows one
 	// writer at a time, so a single pooled connection serializes all access
 	// instead of racing on SQLITE_BUSY.
 	var err error
-	appDB, err = sql.Open("sqlite", filepath.Join(dbFolder, "artifact.db"))
+	appDB, err = sql.Open("sqlite", dbPath)
 	if err != nil {
 		log.Fatalf("Failed to open database: %v", err)
 	}
@@ -73,8 +70,10 @@ func main() {
 	}
 
 	// One-time migration: adopt any pre-existing flat files into the db-backed model
-	if err := importLegacyUploads(); err != nil {
-		log.Printf("Legacy upload import failed: %v", err)
+	if dbIsNew {
+		if err := importLegacyUploads(); err != nil {
+			log.Printf("Legacy upload import failed: %v", err)
+		}
 	}
 
 	// Setup router
@@ -89,9 +88,10 @@ func main() {
 	// API Routes - all under /api/ prefix
 	r.HandleFunc("/api/health", healthCheckHandler).Methods("GET")
 	r.HandleFunc("/api/files", listFilesRouteHandler).Methods("GET")
+	r.HandleFunc("/api/stats", statsRouteHandler).Methods("GET")
 	r.HandleFunc("/api/config", requireToken(getConfigHandler)).Methods("GET")
 	r.HandleFunc("/api/upload", requireToken(uploadFileHandler)).Methods("POST")
-	r.HandleFunc("/api/delete/{filename}", requireToken(deleteFileHandler)).Methods("DELETE")
+	r.HandleFunc("/api/delete/{slug}", requireToken(deleteFileHandler)).Methods("DELETE")
 	r.HandleFunc("/s/{slug}", shortLinkHandler).Methods("GET")
 
 	// Static files served as fallback (no /static/ prefix)

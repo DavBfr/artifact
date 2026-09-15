@@ -22,6 +22,9 @@ class FileInfo {
   final String mimeType;
   final String url;
 
+  // The short link slug (the last path segment of `url`, e.g. "/s/aB3xQ").
+  String get slug => url.split('/').last;
+
   Map<String, dynamic> toJson() => _$FileInfoToJson(this);
 }
 
@@ -94,6 +97,7 @@ class ConfigResponse {
   ConfigResponse({
     required this.success,
     required this.maxContentLength,
+    required this.maxListLimit,
     this.error,
   });
 
@@ -103,9 +107,34 @@ class ConfigResponse {
   final bool success;
   @JsonKey(name: 'max_content_length')
   final int maxContentLength;
+  @JsonKey(name: 'max_list_limit')
+  final int maxListLimit;
   final String? error;
 
   Map<String, dynamic> toJson() => _$ConfigResponseToJson(this);
+}
+
+/// Stats response
+@JsonSerializable(fieldRename: FieldRename.snake)
+class StatsResponse {
+  StatsResponse({
+    required this.success,
+    required this.totalFiles,
+    required this.totalSize,
+    this.lastUpload,
+    this.error,
+  });
+
+  factory StatsResponse.fromJson(Map<String, dynamic> json) =>
+      _$StatsResponseFromJson(json);
+
+  final bool success;
+  final int totalFiles;
+  final int totalSize;
+  final String? lastUpload;
+  final String? error;
+
+  Map<String, dynamic> toJson() => _$StatsResponseToJson(this);
 }
 
 /// Health check response
