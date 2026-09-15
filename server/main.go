@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/dgraph-io/badger/v4"
 	"github.com/gorilla/mux"
 )
 
@@ -32,10 +33,28 @@ func main() {
 	noListing = parseBool(os.Getenv("ART_NO_LISTING"), false)
 	appendOnly = parseBool(os.Getenv("ART_APPEND_ONLY"), false)
 
+	dbFolder = os.Getenv("ART_DB_FOLDER")
+	if dbFolder == "" {
+		dbFolder = "/var/db"
+	}
+
 	// Ensure upload directory exists
 	if err := os.MkdirAll(uploadFolder, 0755); err != nil {
 		log.Fatalf("Failed to create upload directory: %v", err)
 	}
+
+	// Ensure short link database directory exists
+	if err := os.MkdirAll(dbFolder, 0755); err != nil {
+		log.Fatalf("Failed to create db directory: %v", err)
+	}
+
+	// Open the short link database (badger logs its own internal warnings; keep them quiet)
+	var err error
+	shortLinkDB, err = badger.Open(badger.DefaultOptions(dbFolder).WithLogger(nil))
+	if err != nil {
+		log.Fatalf("Failed to open short link database: %v", err)
+	}
+	defer shortLinkDB.Close()
 
 	// Setup router
 	r := mux.NewRouter()
@@ -53,6 +72,7 @@ func main() {
 	r.HandleFunc("/api/upload", requireToken(uploadFileHandler)).Methods("POST")
 	r.HandleFunc("/api/delete/{filename}", requireToken(deleteFileHandler)).Methods("DELETE")
 	r.HandleFunc("/api/uploads/{filename}", serveFileHandler).Methods("GET")
+	r.HandleFunc("/s/{slug}", shortLinkHandler).Methods("GET")
 
 	// Static files served as fallback (no /static/ prefix)
 	// Check if static folder and index.html exist

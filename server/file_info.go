@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"mime"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ func getFileInfo(filePath string) (FileInfo, error) {
 	}
 
 	modTime := stat.ModTime()
+	name := filepath.Base(filePath)
 
 	// Detect content type
 	var contentType string
@@ -22,11 +24,20 @@ func getFileInfo(filePath string) (FileInfo, error) {
 		contentType = mime.TypeByExtension(ext)
 	}
 
+	// Short link creation is best-effort: failures shouldn't break file listing/upload
+	var shortURL string
+	if slug, err := getOrCreateShortLink(name); err != nil {
+		log.Printf("Failed to get or create short link for %s: %v", name, err)
+	} else {
+		shortURL = "/s/" + slug
+	}
+
 	return FileInfo{
-		Name:     filepath.Base(filePath),
+		Name:     name,
 		Size:     stat.Size(),
 		Modified: modTime.Format(time.RFC3339),
-		URL:      "/api/uploads/" + filepath.Base(filePath),
+		URL:      "/api/uploads/" + name,
 		MimeType: contentType,
+		ShortURL: shortURL,
 	}, nil
 }

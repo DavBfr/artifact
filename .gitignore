@@ -2,3 +2,5 @@
 .env
 /data
 /flt
+/db
+/server/upload-server

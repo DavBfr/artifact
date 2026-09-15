@@ -12,9 +12,13 @@ import (
 )
 
 func serveFileHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	filename := vars["filename"]
+	filename := mux.Vars(r)["filename"]
+	serveFileByName(w, r, filename)
+}
 
+// serveFileByName streams filename from uploadFolder, shared by both the
+// direct /api/uploads/{filename} route and the /s/{slug} short link route.
+func serveFileByName(w http.ResponseWriter, r *http.Request, filename string) {
 	// Secure the filename
 	filename = filepath.Base(filepath.Clean(filename))
 	filePath := filepath.Join(uploadFolder, filename)

@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+
+	"github.com/dgraph-io/badger/v4"
 )
 
 const (
@@ -18,6 +20,8 @@ var (
 	webPortal        bool
 	noListing        bool
 	appendOnly       bool
+	dbFolder         string
+	shortLinkDB      *badger.DB
 )
 
 type ConfigResponse struct {

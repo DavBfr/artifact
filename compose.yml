@@ -14,12 +14,14 @@ services:
     container_name: artifact-server
     volumes:
       - ./data:/var/uploads
+      - ./db:/var/db
     environment:
       - ART_API_TOKEN
       - ART_MAX_FILE_SIZE
       - ART_WEB_PORTAL
       - ART_NO_LISTING
       - ART_APPEND_ONLY
+      - ART_DB_FOLDER
     restart: unless-stopped
     ports:
       - "9080:8080"

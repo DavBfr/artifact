@@ -1,6 +1,8 @@
 import 'package:jaspr/dom.dart';
 import 'package:jaspr/jaspr.dart';
+import 'package:universal_web/web.dart' as web;
 
+import '../bulma/bulma.dart';
 import '../models/api_models.dart';
 import '../models/file_icon.dart';
 import '../utils/formatters.dart';
@@ -23,6 +25,14 @@ class FilesList extends StatefulComponent {
 
 class _FilesListState extends State<FilesList> {
   String query = '';
+
+  void _copyShortLink(FileInfo file) {
+    final shortLink = '${web.window.location.origin}${file.shortUrl}';
+    web.window.navigator.clipboard.writeText(shortLink);
+    NotificationMessenger.of(context).showNotification(
+      BulmaNotification.success('Short link copied to clipboard'),
+    );
+  }
 
   Iterable<FileInfo> get prefilteredFiles {
     return component.isAuthenticated
@@ -143,6 +153,14 @@ class _FilesListState extends State<FilesList> {
                 ]),
                 // Actions aligned to the right
                 div(classes: 'ml-auto', [
+                  button(
+                    classes: 'button is-small is-link is-light mr-2',
+                    attributes: const {'title': 'Copy short link'},
+                    onClick: () => _copyShortLink(file),
+                    const [
+                      span(classes: 'icon', [i(classes: 'fas fa-link', [])]),
+                    ],
+                  ),
                   a(
                     href: file.url,
                     classes: 'button is-small is-primary is-light mr-2',

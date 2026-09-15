@@ -14,6 +14,7 @@ type FileInfo struct {
 	Modified string `json:"modified"`
 	URL      string `json:"url"`
 	MimeType string `json:"mime_type"`
+	ShortURL string `json:"short_url"`
 }
 
 type ListFilesResponse struct {
