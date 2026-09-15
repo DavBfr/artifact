@@ -1,15 +1,15 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
-
-	"github.com/dgraph-io/badger/v4"
 )
 
 const (
-	defaultMaxFileSize = 100 * 1024 * 1024 // 100MB
-	chunkSize          = 8 * 1024 * 1024   // 8MB chunks
+	defaultMaxFileSize  = 100 * 1024 * 1024 // 100MB
+	chunkSize           = 8 * 1024 * 1024   // 8MB chunks
+	defaultMaxListLimit = 500
 )
 
 var (
@@ -21,7 +21,8 @@ var (
 	noListing        bool
 	appendOnly       bool
 	dbFolder         string
-	shortLinkDB      *badger.DB
+	appDB            *sql.DB
+	maxListLimit     int
 )
 
 type ConfigResponse struct {

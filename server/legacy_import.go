@@ -1,32 +1,27 @@
 package main
 
 import (
+	"database/sql"
 	"log"
 	"mime"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/dgraph-io/badger/v4"
 )
 
 // hasAnyRecords reports whether the db already holds at least one record
 // (live or deleted), used to detect a fresh db that predates this feature.
 func hasAnyRecords() (bool, error) {
-	found := false
-	err := shortLinkDB.View(func(txn *badger.Txn) error {
-		opts := badger.DefaultIteratorOptions
-		opts.PrefetchValues = false
-		it := txn.NewIterator(opts)
-		defer it.Close()
-
-		prefix := []byte(recordKeyPrefix)
-		it.Seek(prefix)
-		found = it.ValidForPrefix(prefix)
-		return nil
-	})
-	return found, err
+	var exists int
+	err := appDB.QueryRow("SELECT 1 FROM files LIMIT 1").Scan(&exists)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // importLegacyUploads is a one-time migration: if the db has no records yet,
@@ -59,7 +54,7 @@ func importLegacyUploads() error {
 		imported++
 	}
 	if imported > 0 {
-		log.Printf("Imported %d legacy file(s) from %s into the short link database", imported, uploadFolder)
+		log.Printf("Imported %d legacy file(s) from %s into the file record database", imported, uploadFolder)
 	}
 	return nil
 }
@@ -78,21 +73,11 @@ func importLegacyUpload(displayName string) error {
 		mimeType = mime.TypeByExtension(ext)
 	}
 
-	var rec FileRecord
-	err = shortLinkDB.Update(func(txn *badger.Txn) error {
-		slug, err := generateUniqueSlug(txn)
-		if err != nil {
-			return err
-		}
-		rec = FileRecord{
-			Slug:        slug,
-			DisplayName: displayName,
-			StorageKey:  storageKeyForSlug(slug),
-			Size:        stat.Size(),
-			Modified:    stat.ModTime().UTC().Format(time.RFC3339),
-			MimeType:    mimeType,
-		}
-		return saveRecord(txn, rec)
+	rec, err := insertUniqueRecord(appDB, FileRecord{
+		DisplayName: displayName,
+		Size:        stat.Size(),
+		Modified:    stat.ModTime().UTC().Format(time.RFC3339),
+		MimeType:    mimeType,
 	})
 	if err != nil {
 		return err

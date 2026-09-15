@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 
 	"log"
@@ -8,8 +9,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/dgraph-io/badger/v4"
 	"github.com/gorilla/mux"
+	_ "modernc.org/sqlite"
 )
 
 func main() {
@@ -38,6 +39,11 @@ func main() {
 		dbFolder = "/var/db"
 	}
 
+	maxListLimit = parseInt(os.Getenv("ART_MAX_LIST_LIMIT"), defaultMaxListLimit)
+	if maxListLimit <= 0 {
+		maxListLimit = defaultMaxListLimit
+	}
+
 	// Ensure upload directory exists
 	if err := os.MkdirAll(uploadFolder, 0755); err != nil {
 		log.Fatalf("Failed to create upload directory: %v", err)
@@ -48,13 +54,23 @@ func main() {
 		log.Fatalf("Failed to create db directory: %v", err)
 	}
 
-	// Open the short link database (badger logs its own internal warnings; keep them quiet)
+	// Open the file record database. modernc.org/sqlite is pure Go (no CGO),
+	// matching this project's static/scratch build. SQLite only allows one
+	// writer at a time, so a single pooled connection serializes all access
+	// instead of racing on SQLITE_BUSY.
 	var err error
-	shortLinkDB, err = badger.Open(badger.DefaultOptions(dbFolder).WithLogger(nil))
+	appDB, err = sql.Open("sqlite", filepath.Join(dbFolder, "artifact.db"))
 	if err != nil {
-		log.Fatalf("Failed to open short link database: %v", err)
+		log.Fatalf("Failed to open database: %v", err)
 	}
-	defer shortLinkDB.Close()
+	defer appDB.Close()
+	appDB.SetMaxOpenConns(1)
+	if _, err := appDB.Exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;"); err != nil {
+		log.Fatalf("Failed to configure database: %v", err)
+	}
+	if err := initSchema(); err != nil {
+		log.Fatalf("Failed to initialize database schema: %v", err)
+	}
 
 	// One-time migration: adopt any pre-existing flat files into the db-backed model
 	if err := importLegacyUploads(); err != nil {

@@ -2,11 +2,11 @@ package main
 
 import (
 	"crypto/rand"
-	"encoding/json"
+	"database/sql"
 	"errors"
 	"net/http"
+	"strings"
 
-	"github.com/dgraph-io/badger/v4"
 	"github.com/gorilla/mux"
 )
 
@@ -15,27 +15,44 @@ const (
 	shortSlugMinLen         = 5
 	shortSlugMaxLen         = 12
 	shortSlugAttemptsPerLen = 10
-	recordKeyPrefix         = "r:"
+	recordColumns           = "slug, display_name, storage_key, size, modified, mime_type, deleted, pending"
 )
+
+var errRecordNotFound = errors.New("record not found")
 
 // FileRecord is the durable, db-backed record for one uploaded file. Rows are
 // never removed - deletion (and replacement on upload) only flips Deleted, so
 // a slug can never be reused for different content.
 type FileRecord struct {
-	Slug        string `json:"slug"`
-	DisplayName string `json:"display_name"`
-	StorageKey  string `json:"storage_key"` // path within uploadFolder, e.g. "ab/cdefgh..."
-	Size        int64  `json:"size"`
-	Modified    string `json:"modified"`
-	MimeType    string `json:"mime_type"`
-	Deleted     bool   `json:"deleted"`
+	Slug        string
+	DisplayName string
+	StorageKey  string // path within uploadFolder, e.g. "ab/cdefgh..."
+	Size        int64
+	Modified    string
+	MimeType    string
+	Deleted     bool
 	// Pending is true between reserving a slug and finishing the write to
 	// disk, so an in-flight upload never shows up as a live file.
-	Pending bool `json:"pending"`
+	Pending bool
 }
 
-func recordKey(slug string) []byte {
-	return []byte(recordKeyPrefix + slug)
+// initSchema creates the files table (and its indexes) if they don't exist yet.
+func initSchema() error {
+	_, err := appDB.Exec(`
+		CREATE TABLE IF NOT EXISTS files (
+			slug         TEXT PRIMARY KEY,
+			display_name TEXT NOT NULL,
+			storage_key  TEXT NOT NULL,
+			size         INTEGER NOT NULL DEFAULT 0,
+			modified     TEXT NOT NULL DEFAULT '',
+			mime_type    TEXT NOT NULL DEFAULT '',
+			deleted      INTEGER NOT NULL DEFAULT 0,
+			pending      INTEGER NOT NULL DEFAULT 0
+		);
+		CREATE INDEX IF NOT EXISTS idx_files_display_name ON files(display_name);
+		CREATE INDEX IF NOT EXISTS idx_files_live ON files(deleted, pending);
+	`)
+	return err
 }
 
 // storageKeyForSlug shards files into subdirectories by slug prefix instead of
@@ -58,104 +75,124 @@ func randomSlug(length int) (string, error) {
 	return string(slug), nil
 }
 
-// generateUniqueSlug finds a slug not already present in txn, growing the
-// length if repeated collisions occur.
-func generateUniqueSlug(txn *badger.Txn) (string, error) {
+// isUniqueConstraintErr reports whether err is a sqlite UNIQUE constraint violation.
+func isUniqueConstraintErr(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed")
+}
+
+// execer is satisfied by both *sql.DB and *sql.Tx.
+type execer interface {
+	Exec(query string, args ...any) (sql.Result, error)
+	QueryRow(query string, args ...any) *sql.Row
+}
+
+// scanner is satisfied by both *sql.Row and *sql.Rows.
+type scanner interface {
+	Scan(dest ...any) error
+}
+
+func scanRecord(s scanner) (FileRecord, error) {
+	var rec FileRecord
+	var deleted, pending int
+	err := s.Scan(&rec.Slug, &rec.DisplayName, &rec.StorageKey, &rec.Size, &rec.Modified, &rec.MimeType, &deleted, &pending)
+	if err != nil {
+		return FileRecord{}, err
+	}
+	rec.Deleted = deleted != 0
+	rec.Pending = pending != 0
+	return rec, nil
+}
+
+// insertUniqueRecord inserts rec as a new row, generating a unique slug (and
+// its derived storage key) and retrying with a longer slug on collision.
+func insertUniqueRecord(db execer, rec FileRecord) (FileRecord, error) {
 	for length := shortSlugMinLen; length <= shortSlugMaxLen; length++ {
 		for attempt := 0; attempt < shortSlugAttemptsPerLen; attempt++ {
 			slug, err := randomSlug(length)
 			if err != nil {
-				return "", err
+				return FileRecord{}, err
 			}
-			_, err = txn.Get(recordKey(slug))
-			if errors.Is(err, badger.ErrKeyNotFound) {
-				return slug, nil
+			rec.Slug = slug
+			rec.StorageKey = storageKeyForSlug(slug)
+
+			deleted, pending := 0, 0
+			if rec.Deleted {
+				deleted = 1
 			}
-			if err != nil {
-				return "", err
+			if rec.Pending {
+				pending = 1
 			}
+			_, err = db.Exec(
+				"INSERT INTO files ("+recordColumns+") VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+				rec.Slug, rec.DisplayName, rec.StorageKey, rec.Size, rec.Modified, rec.MimeType, deleted, pending,
+			)
+			if err == nil {
+				return rec, nil
+			}
+			if !isUniqueConstraintErr(err) {
+				return FileRecord{}, err
+			}
+			// slug collision: retry, growing the length after enough attempts
 		}
 	}
-	return "", errors.New("failed to generate a unique short link slug")
-}
-
-func saveRecord(txn *badger.Txn, rec FileRecord) error {
-	data, err := json.Marshal(rec)
-	if err != nil {
-		return err
-	}
-	return txn.Set(recordKey(rec.Slug), data)
-}
-
-func readRecord(txn *badger.Txn, slug string) (FileRecord, error) {
-	var rec FileRecord
-	item, err := txn.Get(recordKey(slug))
-	if err != nil {
-		return rec, err
-	}
-	err = item.Value(func(val []byte) error {
-		return json.Unmarshal(val, &rec)
-	})
-	return rec, err
+	return FileRecord{}, errors.New("failed to generate a unique short link slug")
 }
 
 // getFileRecord returns the record for slug, regardless of its Deleted/Pending state.
 func getFileRecord(slug string) (FileRecord, error) {
-	var rec FileRecord
-	err := shortLinkDB.View(func(txn *badger.Txn) error {
-		var err error
-		rec, err = readRecord(txn, slug)
-		return err
-	})
+	row := appDB.QueryRow("SELECT "+recordColumns+" FROM files WHERE slug = ?", slug)
+	rec, err := scanRecord(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return FileRecord{}, errRecordNotFound
+	}
 	return rec, err
 }
 
 // findLiveRecordByName returns the (at most one, unless append-only) live
 // record with the given display name.
-func findLiveRecordByName(txn *badger.Txn, displayName string) (*FileRecord, error) {
-	it := txn.NewIterator(badger.DefaultIteratorOptions)
-	defer it.Close()
-
-	prefix := []byte(recordKeyPrefix)
-	for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-		var rec FileRecord
-		err := it.Item().Value(func(val []byte) error {
-			return json.Unmarshal(val, &rec)
-		})
-		if err != nil {
-			return nil, err
-		}
-		if !rec.Deleted && !rec.Pending && rec.DisplayName == displayName {
-			return &rec, nil
-		}
+func findLiveRecordByName(db execer, displayName string) (*FileRecord, error) {
+	row := db.QueryRow(
+		"SELECT "+recordColumns+" FROM files WHERE display_name = ? AND deleted = 0 AND pending = 0 LIMIT 1",
+		displayName,
+	)
+	rec, err := scanRecord(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
 	}
-	return nil, nil
+	if err != nil {
+		return nil, err
+	}
+	return &rec, nil
 }
 
-// listLiveRecords returns every non-deleted, non-pending record: the db is
-// the single source of truth for listing (no directory scan).
-func listLiveRecords() ([]FileRecord, error) {
-	var records []FileRecord
-	err := shortLinkDB.View(func(txn *badger.Txn) error {
-		it := txn.NewIterator(badger.DefaultIteratorOptions)
-		defer it.Close()
+// listLiveRecords returns up to limit non-deleted, non-pending records
+// starting at the offset-th live record (ordered newest-first by
+// modification time), plus the total live count - both computed by sqlite
+// directly (ORDER BY / LIMIT / OFFSET / COUNT(*)) rather than in Go.
+func listLiveRecords(offset, limit int) ([]FileRecord, int, error) {
+	var total int
+	if err := appDB.QueryRow("SELECT COUNT(*) FROM files WHERE deleted = 0 AND pending = 0").Scan(&total); err != nil {
+		return nil, 0, err
+	}
 
-		prefix := []byte(recordKeyPrefix)
-		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
-			var rec FileRecord
-			err := it.Item().Value(func(val []byte) error {
-				return json.Unmarshal(val, &rec)
-			})
-			if err != nil {
-				return err
-			}
-			if !rec.Deleted && !rec.Pending {
-				records = append(records, rec)
-			}
+	rows, err := appDB.Query(
+		"SELECT "+recordColumns+" FROM files WHERE deleted = 0 AND pending = 0 ORDER BY modified DESC LIMIT ? OFFSET ?",
+		limit, offset,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var records []FileRecord
+	for rows.Next() {
+		rec, err := scanRecord(rows)
+		if err != nil {
+			return nil, 0, err
 		}
-		return nil
-	})
-	return records, err
+		records = append(records, rec)
+	}
+	return records, total, rows.Err()
 }
 
 // reserveUpload creates a new pending record for displayName and, unless
@@ -164,98 +201,81 @@ func listLiveRecords() ([]FileRecord, error) {
 // upload succeeds). Soft-deleted rows are kept forever so their slug is
 // never reused.
 func reserveUpload(displayName, mimeType string) (rec FileRecord, replaced *FileRecord, err error) {
-	err = shortLinkDB.Update(func(txn *badger.Txn) error {
-		slug, err := generateUniqueSlug(txn)
+	tx, err := appDB.Begin()
+	if err != nil {
+		return FileRecord{}, nil, err
+	}
+	defer tx.Rollback()
+
+	if !appendOnly {
+		replaced, err = findLiveRecordByName(tx, displayName)
 		if err != nil {
-			return err
+			return FileRecord{}, nil, err
 		}
-
-		if !appendOnly {
-			replaced, err = findLiveRecordByName(txn, displayName)
-			if err != nil {
-				return err
-			}
-			if replaced != nil {
-				deleted := *replaced
-				deleted.Deleted = true
-				if err := saveRecord(txn, deleted); err != nil {
-					return err
-				}
+		if replaced != nil {
+			if _, err := tx.Exec("UPDATE files SET deleted = 1 WHERE slug = ?", replaced.Slug); err != nil {
+				return FileRecord{}, nil, err
 			}
 		}
+	}
 
-		rec = FileRecord{
-			Slug:        slug,
-			DisplayName: displayName,
-			StorageKey:  storageKeyForSlug(slug),
-			MimeType:    mimeType,
-			Pending:     true,
-		}
-		return saveRecord(txn, rec)
-	})
-	return rec, replaced, err
+	rec, err = insertUniqueRecord(tx, FileRecord{DisplayName: displayName, MimeType: mimeType, Pending: true})
+	if err != nil {
+		return FileRecord{}, nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return FileRecord{}, nil, err
+	}
+	return rec, replaced, nil
 }
 
 // finalizeUpload patches the record with its final size/modified time and
 // clears Pending once the file has been fully written to disk.
 func finalizeUpload(slug string, size int64, modified string) (FileRecord, error) {
-	var rec FileRecord
-	err := shortLinkDB.Update(func(txn *badger.Txn) error {
-		var err error
-		rec, err = readRecord(txn, slug)
-		if err != nil {
-			return err
-		}
-		rec.Size = size
-		rec.Modified = modified
-		rec.Pending = false
-		return saveRecord(txn, rec)
-	})
-	return rec, err
+	if _, err := appDB.Exec("UPDATE files SET size = ?, modified = ?, pending = 0 WHERE slug = ?", size, modified, slug); err != nil {
+		return FileRecord{}, err
+	}
+	return getFileRecord(slug)
 }
 
 // abortUpload marks a reserved record as deleted after a failed write so its
 // slug is never reused, without ever leaving it visible as a live file.
 func abortUpload(slug string) error {
-	return shortLinkDB.Update(func(txn *badger.Txn) error {
-		rec, err := readRecord(txn, slug)
-		if err != nil {
-			return err
-		}
-		rec.Deleted = true
-		rec.Pending = false
-		return saveRecord(txn, rec)
-	})
+	_, err := appDB.Exec("UPDATE files SET deleted = 1, pending = 0 WHERE slug = ?", slug)
+	return err
 }
 
 // softDeleteByDisplayName marks the live record for displayName as deleted,
 // keeping the row (and its slug) around forever.
 func softDeleteByDisplayName(displayName string) (*FileRecord, error) {
-	var rec *FileRecord
-	err := shortLinkDB.Update(func(txn *badger.Txn) error {
-		found, err := findLiveRecordByName(txn, displayName)
-		if err != nil {
-			return err
-		}
-		if found == nil {
-			return nil
-		}
-		deleted := *found
-		deleted.Deleted = true
-		if err := saveRecord(txn, deleted); err != nil {
-			return err
-		}
-		rec = &deleted
-		return nil
-	})
-	return rec, err
+	tx, err := appDB.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	rec, err := findLiveRecordByName(tx, displayName)
+	if err != nil {
+		return nil, err
+	}
+	if rec == nil {
+		return nil, nil
+	}
+	if _, err := tx.Exec("UPDATE files SET deleted = 1 WHERE slug = ?", rec.Slug); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return rec, nil
 }
 
 func shortLinkHandler(w http.ResponseWriter, r *http.Request) {
 	slug := mux.Vars(r)["slug"]
 
 	rec, err := getFileRecord(slug)
-	if errors.Is(err, badger.ErrKeyNotFound) {
+	if errors.Is(err, errRecordNotFound) {
 		http.NotFound(w, r)
 		return
 	}

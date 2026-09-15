@@ -15,6 +15,16 @@ func parseBool(s string, defaultValue bool) bool {
 	return defaultValue
 }
 
+func parseInt(s string, defaultValue int) int {
+	if s == "" {
+		return defaultValue
+	}
+	if value, err := strconv.Atoi(strings.TrimSpace(s)); err == nil {
+		return value
+	}
+	return defaultValue
+}
+
 func parseSize(s string, defaultSize int64) int64 {
 	if s == "" {
 		return defaultSize
