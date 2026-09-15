@@ -26,7 +26,7 @@ class BulmaProgressBar extends StatelessComponent {
       classes: 'progress ${color != null ? ' is-${color!.name}' : ''}',
       value: value,
       max: max,
-      [if (child != null) child!],
+      [?child],
     );
   }
 }

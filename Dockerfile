@@ -1,19 +1,23 @@
-FROM ghcr.io/cirruslabs/flutter:stable AS web_builder
+FROM --platform=linux/amd64 ghcr.io/gmeligio/flutter-web:3.47.4 AS web_builder
 
 # Set working directory
 WORKDIR /app
 
-RUN apt update && apt install -y minify librsvg2-bin optipng scour
+USER root
+
+RUN apt-get update && apt-get install --no-install-recommends -y minify librsvg2-bin optipng scour
+
+USER flutter:flutter
 
 # Copy pubspec files
-COPY web/pubspec.yaml web/pubspec.lock* ./
+COPY --chown=flutter:flutter web/pubspec.yaml web/pubspec.lock* ./
 
 # Get dependencies
 RUN dart pub get
 
 # Copy the web source code
-COPY web/lib ./lib
-COPY web/web ./web
+COPY --chown=flutter:flutter web/lib ./lib
+COPY --chown=flutter:flutter web/web ./web
 
 # Prepare build files
 RUN dart run build_runner build --delete-conflicting-outputs
@@ -44,7 +48,7 @@ RUN \
     -i $f -o dist/$base; \
     done
 
-FROM golang:alpine AS builder
+FROM golang:1.27-alpine@sha256:ce864e7223ac17b1775e6fd0b4c0db580c2eb50e7953a427916379e4b92a1628 AS builder
 
 ARG TARGETARCH
 ARG CSP_VERSION=v0.1.5
