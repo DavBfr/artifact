@@ -24,6 +24,7 @@ Press `alt` to reveal the login button.
 - **Token Authentication**: Secure your uploads with API tokens
 - **File Management**: List, download, and delete files
 - **Short Links**: Every uploaded file gets a permanent, non-enumerable `/s/{slug}` link for sharing/downloading
+- **Filename URLs** *(optional)*: `/f/{filename}` always resolves to the latest version of that name; disable via `ART_NO_FILENAME_URL`
 - **Search & Sort**: Paginated file listing with server-side search and sorting (name, date, size)
 - **Chunked Uploads**: Efficient handling of large files
 - **Health Checks**: Built-in health endpoint for monitoring
@@ -39,17 +40,18 @@ Press `alt` to reveal the login button.
 
 ### Environment Variables
 
-| Variable             | Description                                                                       | Default        |
-| -------------------- | --------------------------------------------------------------------------------- | -------------- |
-| `ART_API_TOKEN`      | Authentication token for API access (required for uploads/deletes)                | None           |
-| `ART_PORT`           | Port to listen on                                                                 | `8080`         |
-| `ART_UPLOAD_FOLDER`  | Directory to store uploaded files and the sqlite file-record database             | `/var/uploads` |
-| `ART_STATIC_FOLDER`  | Directory for static web files                                                    | `/app/static`  |
-| `ART_MAX_FILE_SIZE`  | Maximum file size (e.g., "100M", "1G")                                            | `100M`         |
-| `ART_WEB_PORTAL`     | Serve the web interface. `false` disables it entirely (404s)                      | `true`         |
-| `ART_NO_LISTING`     | `true` requires a valid API token to call `GET /api/files` and `GET /api/stats`   | `false`        |
-| `ART_APPEND_ONLY`    | `true` keeps every upload as a separate file (no replacing) and disables deletion | `false`        |
-| `ART_MAX_LIST_LIMIT` | Hard cap on the number of files returned per `GET /api/files` request             | `500`          |
+| Variable              | Description                                                                       | Default        |
+| --------------------- | --------------------------------------------------------------------------------- | -------------- |
+| `ART_API_TOKEN`       | Authentication token for API access (required for uploads/deletes)                | None           |
+| `ART_PORT`            | Port to listen on                                                                 | `8080`         |
+| `ART_UPLOAD_FOLDER`   | Directory to store uploaded files and the sqlite file-record database             | `/var/uploads` |
+| `ART_STATIC_FOLDER`   | Directory for static web files                                                    | `/app/static`  |
+| `ART_MAX_FILE_SIZE`   | Maximum file size (e.g., "100M", "1G")                                            | `100M`         |
+| `ART_WEB_PORTAL`      | Serve the web interface. `false` disables it entirely (404s)                      | `true`         |
+| `ART_NO_LISTING`      | `true` requires a valid API token to call `GET /api/files` and `GET /api/stats`   | `false`        |
+| `ART_APPEND_ONLY`     | `true` keeps every upload as a separate file (no replacing) and disables deletion | `false`        |
+| `ART_MAX_LIST_LIMIT`  | Hard cap on the number of files returned per `GET /api/files` request             | `500`          |
+| `ART_NO_FILENAME_URL` | `true` disables `GET /f/{filename}` entirely (404s)                     | `false`        |
 
 ### Volume Mounts
 
@@ -97,7 +99,15 @@ GET /api/config
 Authorization: Bearer your-token-here
 ```
 
-Returns `max_content_length` and `max_list_limit`.
+Public - no token required - but the response depends on what's supplied:
+
+| Field                   | Without a token                          | With a valid token |
+| ----------------------- | ---------------------------------------- | ------------------ |
+| `filename_urls_enabled` | included if "true" default false omitted | always included    |
+| `max_list_limit`        | included only if `ART_NO_LISTING=false`  | always included    |
+| `max_content_length`    | omitted                                  | included           |
+
+An invalid (non-empty but wrong) token still returns `401`.
 
 ### Get Aggregate Stats
 
@@ -152,6 +162,14 @@ GET /s/{slug}
 ```
 
 Public, no authentication required. This is the `url` returned for each file by `/api/files` and `/api/upload`. Links are never reused, even after the file is deleted.
+
+### Download File by Name (optional)
+
+```bash
+GET /f/{filename}
+```
+
+Public, no authentication required. Always resolves to the *latest* live upload with that display name (per the db), regardless of its short link slug - useful for a stable, human-readable URL that always points at the current version. Disabled entirely (404s) when `ART_NO_FILENAME_URL=true`. The UI only shows a "copy filename link" button when this is enabled (reported via `/api/config`'s `filename_urls_enabled`).
 
 ### Delete File
 

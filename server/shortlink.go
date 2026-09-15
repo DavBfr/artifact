@@ -165,6 +165,25 @@ func findLiveRecordByName(db execer, displayName string) (*FileRecord, error) {
 	return &rec, nil
 }
 
+// latestLiveRecordByName returns the most recently uploaded live record with
+// the given display name - the one that /f/{filename} resolves to.
+// Under ART_APPEND_ONLY, several live records can share a display name; this
+// picks the newest one.
+func latestLiveRecordByName(displayName string) (*FileRecord, error) {
+	row := appDB.QueryRow(
+		"SELECT "+recordColumns+" FROM files WHERE display_name = ? AND deleted = 0 AND pending = 0 ORDER BY modified DESC LIMIT 1",
+		displayName,
+	)
+	rec, err := scanRecord(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &rec, nil
+}
+
 // orderByClause maps an "order" query param to a whitelisted ORDER BY
 // fragment - never build this from raw user input, to avoid SQL injection.
 func orderByClause(order string) string {

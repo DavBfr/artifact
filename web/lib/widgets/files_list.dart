@@ -17,6 +17,7 @@ class FilesList extends StatefulComponent {
     required this.hasMore,
     required this.isLoadingMore,
     required this.onLoadMore,
+    required this.filenameUrlsEnabled,
     super.key,
   });
 
@@ -28,6 +29,7 @@ class FilesList extends StatefulComponent {
   final bool hasMore;
   final bool isLoadingMore;
   final VoidCallback onLoadMore;
+  final bool filenameUrlsEnabled;
 
   @override
   State<FilesList> createState() => _FilesListState();
@@ -39,6 +41,15 @@ class _FilesListState extends State<FilesList> {
     web.window.navigator.clipboard.writeText(shortLink);
     NotificationMessenger.of(context).showNotification(
       BulmaNotification.success('Short link copied to clipboard'),
+    );
+  }
+
+  void _copyFilenameLink(FileInfo file) {
+    final filenameLink =
+        '${web.window.location.origin}/f/${Uri.encodeComponent(file.name)}';
+    web.window.navigator.clipboard.writeText(filenameLink);
+    NotificationMessenger.of(context).showNotification(
+      BulmaNotification.success('Filename link copied to clipboard'),
     );
   }
 
@@ -120,8 +131,7 @@ class _FilesListState extends State<FilesList> {
 
           // File entries (current page)
           for (final file in component.files) ...[
-            a(
-              href: 'javascript:void(0);',
+            div(
               classes: 'panel-block',
               attributes: const {'style': 'cursor: default;'},
               [
@@ -161,6 +171,17 @@ class _FilesListState extends State<FilesList> {
                       span(classes: 'icon', [i(classes: 'fas fa-link', [])]),
                     ],
                   ),
+                  if (component.filenameUrlsEnabled)
+                    button(
+                      classes: 'button is-small is-info is-light mr-2',
+                      attributes: const {'title': 'Copy filename link'},
+                      onClick: () => _copyFilenameLink(file),
+                      const [
+                        span(classes: 'icon', [
+                          i(classes: 'fas fa-file-signature', []),
+                        ]),
+                      ],
+                    ),
                   a(
                     href: file.url,
                     classes: 'button is-small is-primary is-light mr-2',

@@ -16,11 +16,12 @@ services:
       - ./data:/var/uploads
     environment:
       - ART_API_TOKEN
-      - ART_MAX_FILE_SIZE
-      - ART_WEB_PORTAL
-      - ART_NO_LISTING
       - ART_APPEND_ONLY
+      - ART_MAX_FILE_SIZE
       - ART_MAX_LIST_LIMIT
+      - ART_NO_FILENAME_URL
+      - ART_NO_LISTING
+      - ART_WEB_PORTAL
     restart: unless-stopped
     ports:
       - "9080:8080"

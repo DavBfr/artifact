@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:json_annotation/json_annotation.dart';
 
 part 'api_models.g.dart';
@@ -92,24 +94,28 @@ class UploadResponse {
 }
 
 /// Config response
-@JsonSerializable()
+@JsonSerializable(fieldRename: FieldRename.snake)
 class ConfigResponse {
-  ConfigResponse({
+  const ConfigResponse({
     required this.success,
-    required this.maxContentLength,
-    required this.maxListLimit,
+    this.filenameUrlsEnabled = false,
+    this.maxContentLength = 100 * 1024 * 1024,
+    this.maxListLimit = 500,
     this.error,
   });
 
   factory ConfigResponse.fromJson(Map<String, dynamic> json) =>
       _$ConfigResponseFromJson(json);
 
+  static const empty = ConfigResponse(success: true);
+
   final bool success;
-  @JsonKey(name: 'max_content_length')
   final int maxContentLength;
-  @JsonKey(name: 'max_list_limit')
   final int maxListLimit;
+  final bool filenameUrlsEnabled;
   final String? error;
+
+  int get pageSize => min(maxListLimit, 50);
 
   Map<String, dynamic> toJson() => _$ConfigResponseToJson(this);
 }

@@ -7,7 +7,33 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/gorilla/mux"
 )
+
+// filenameURLHandler serves the latest live upload matching {filename}
+// (by display name), independent of its short link slug. Disabled entirely
+// via ART_NO_FILENAME_URL.
+func filenameURLHandler(w http.ResponseWriter, r *http.Request) {
+	if noFilenameURL {
+		http.NotFound(w, r)
+		return
+	}
+
+	filename := filepath.Base(filepath.Clean(mux.Vars(r)["filename"]))
+
+	rec, err := latestLiveRecordByName(filename)
+	if err != nil {
+		http.Error(w, "Failed to resolve file", http.StatusInternalServerError)
+		return
+	}
+	if rec == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	serveFileRecord(w, r, *rec)
+}
 
 // serveFileRecord streams the physical blob backing rec from uploadFolder, used by the /s/{slug} route.
 func serveFileRecord(w http.ResponseWriter, r *http.Request, rec FileRecord) {

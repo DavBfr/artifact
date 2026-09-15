@@ -27,7 +27,7 @@ class App extends StatefulComponent {
 
 class AppState extends State<App> {
   late ArtifactApiClient _api;
-  ConfigResponse? _config;
+  ConfigResponse _config = ConfigResponse.empty;
   StatsResponse? _stats;
   List<FileInfo>? _files;
   bool _hasMore = true;
@@ -39,15 +39,6 @@ class AppState extends State<App> {
   bool _isUploading = false;
   String? _uploadingFileName;
   int _uploadProgress = 0;
-
-  // The page size we request per listFiles() call, capped server-side by
-  // ART_MAX_LIST_LIMIT (exposed via /api/config); falls back to a sane
-  // default before config has loaded or for unauthenticated users.
-  int get _pageSize {
-    const defaultPageSize = 50;
-    final max = _config?.maxListLimit ?? defaultPageSize;
-    return max > defaultPageSize ? defaultPageSize : max;
-  }
 
   @override
   void initState() {
@@ -63,49 +54,46 @@ class AppState extends State<App> {
   }
 
   Future<void> _load() async {
-    if (_api.isAuthenticated) {
-      try {
-        final configResponse = await _api.getConfig();
-        setState(() {
-          _config = configResponse;
-        });
-      } on AuthenticationException {
-        // Invalid token - show notification and logout
-        TokenStorage.removeToken(context);
-        setState(() {
-          _config = null;
-          _api = ArtifactApiClient.base();
-        });
+    try {
+      final configResponse = await _api.getConfig();
+      setState(() {
+        _config = configResponse;
+      });
+    } on AuthenticationException {
+      // A stored token was rejected - show notification and logout.
+      TokenStorage.removeToken(context);
+      setState(() {
+        _config = ConfigResponse.empty;
+        _api = ArtifactApiClient.base();
+      });
 
-        // Show error notification
-        NotificationMessenger.of(context).showNotification(
-          BulmaNotification.error(
-            'Invalid authentication token. Please login again.',
-            title: 'Authentication Error',
-          ),
-        );
-      } catch (e) {
-        setState(() {
-          _config = null;
-          _api = ArtifactApiClient.base();
-        });
-        NotificationMessenger.of(context).showNotification(
-          BulmaNotification.error(
-            'Failed to load configuration. Please try again. $e',
-            title: 'Error',
-          ),
-        );
-      }
+      // Show error notification
+      NotificationMessenger.of(context).showNotification(
+        BulmaNotification.error(
+          'Invalid authentication token. Please login again.',
+          title: 'Authentication Error',
+        ),
+      );
+    } catch (e) {
+      setState(() {
+        _config = ConfigResponse.empty;
+      });
+      NotificationMessenger.of(context).showNotification(
+        BulmaNotification.error(
+          'Failed to load configuration. Please try again. $e',
+          title: 'Error',
+        ),
+      );
     }
 
     try {
       final filesResponse = await _api.listFiles(
-        limit: _pageSize,
+        limit: _config.pageSize,
         search: _searchQuery,
       );
       setState(() {
         _files = filesResponse.files;
-        _hasMore = filesResponse.count == _pageSize;
+        _hasMore = filesResponse.count == _config.pageSize;
         _listingRestricted = false;
       });
     } on AuthenticationException {
@@ -146,13 +134,13 @@ class AppState extends State<App> {
     setState(() => _isLoadingMore = true);
     try {
       final filesResponse = await _api.listFiles(
-        limit: _pageSize,
+        limit: _config.pageSize,
         offset: files.length,
         search: _searchQuery,
       );
       setState(() {
         _files = [...files, ...filesResponse.files];
-        _hasMore = filesResponse.count == _pageSize;
+        _hasMore = filesResponse.count == _config.pageSize;
         _isLoadingMore = false;
       });
     } catch (e) {
@@ -211,7 +199,7 @@ class AppState extends State<App> {
               TokenStorage.removeToken(context);
               setState(() {
                 _api = ArtifactApiClient.base();
-                _config = null;
+                _config = ConfigResponse.empty;
               });
               await _load();
             }
@@ -227,9 +215,9 @@ class AppState extends State<App> {
           // Stats
           StatsCard(stats: _stats),
 
-          if (_api.isAuthenticated && _config != null)
+          if (_api.isAuthenticated)
             UploadSection(
-              maxContentLength: _config!.maxContentLength,
+              maxContentLength: _config.maxContentLength,
               isUploading: _isUploading,
               uploadingFileName: _uploadingFileName,
               uploadProgress: _uploadProgress,
@@ -247,6 +235,7 @@ class AppState extends State<App> {
             hasMore: _hasMore,
             isLoadingMore: _isLoadingMore,
             onLoadMore: _loadMore,
+            filenameUrlsEnabled: _config.filenameUrlsEnabled,
           ),
         ],
 

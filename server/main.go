@@ -33,6 +33,7 @@ func main() {
 	webPortal = parseBool(os.Getenv("ART_WEB_PORTAL"), true)
 	noListing = parseBool(os.Getenv("ART_NO_LISTING"), false)
 	appendOnly = parseBool(os.Getenv("ART_APPEND_ONLY"), false)
+	noFilenameURL = parseBool(os.Getenv("ART_NO_FILENAME_URL"), false)
 
 	maxListLimit = parseInt(os.Getenv("ART_MAX_LIST_LIMIT"), defaultMaxListLimit)
 	if maxListLimit <= 0 {
@@ -89,10 +90,11 @@ func main() {
 	r.HandleFunc("/api/health", healthCheckHandler).Methods("GET")
 	r.HandleFunc("/api/files", listFilesRouteHandler).Methods("GET")
 	r.HandleFunc("/api/stats", statsRouteHandler).Methods("GET")
-	r.HandleFunc("/api/config", requireToken(getConfigHandler)).Methods("GET")
+	r.HandleFunc("/api/config", getConfigHandler).Methods("GET")
 	r.HandleFunc("/api/upload", requireToken(uploadFileHandler)).Methods("POST")
 	r.HandleFunc("/api/delete/{slug}", requireToken(deleteFileHandler)).Methods("DELETE")
 	r.HandleFunc("/s/{slug}", shortLinkHandler).Methods("GET")
+	r.HandleFunc("/f/{filename}", filenameURLHandler).Methods("GET")
 
 	// Static files served as fallback (no /static/ prefix)
 	// Check if static folder and index.html exist
