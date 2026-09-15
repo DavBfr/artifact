@@ -93,6 +93,9 @@ func main() {
 	r.HandleFunc("/api/config", getConfigHandler).Methods("GET")
 	r.HandleFunc("/api/upload", requireToken(uploadFileHandler)).Methods("POST")
 	r.HandleFunc("/api/delete/{slug}", requireToken(deleteFileHandler)).Methods("DELETE")
+	r.HandleFunc("/api/uploads/{filename}", filenameURLHandler).Methods("GET")
+
+	// File download API Routes
 	r.HandleFunc("/s/{slug}", shortLinkHandler).Methods("GET")
 	r.HandleFunc("/f/{filename}", filenameURLHandler).Methods("GET")
 
