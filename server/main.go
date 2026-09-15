@@ -56,6 +56,11 @@ func main() {
 	}
 	defer shortLinkDB.Close()
 
+	// One-time migration: adopt any pre-existing flat files into the db-backed model
+	if err := importLegacyUploads(); err != nil {
+		log.Printf("Legacy upload import failed: %v", err)
+	}
+
 	// Setup router
 	r := mux.NewRouter()
 
@@ -71,7 +76,6 @@ func main() {
 	r.HandleFunc("/api/config", requireToken(getConfigHandler)).Methods("GET")
 	r.HandleFunc("/api/upload", requireToken(uploadFileHandler)).Methods("POST")
 	r.HandleFunc("/api/delete/{filename}", requireToken(deleteFileHandler)).Methods("DELETE")
-	r.HandleFunc("/api/uploads/{filename}", serveFileHandler).Methods("GET")
 	r.HandleFunc("/s/{slug}", shortLinkHandler).Methods("GET")
 
 	// Static files served as fallback (no /static/ prefix)

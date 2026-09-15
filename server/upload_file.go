@@ -4,10 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 )
 
 type UploadResponse struct {
@@ -75,27 +79,42 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Secure the filename (basic version)
-	filename := filepath.Base(filepath.Clean(part.FileName()))
-	destPath := filepath.Join(uploadFolder, filename)
+	// Secure the display filename (basic version) - this is the name the file
+	// is known by, independent of where its bytes live on disk.
+	displayName := filepath.Base(filepath.Clean(part.FileName()))
 
-	// Check if file already exists
-	replaced := false
-	if _, err := os.Stat(destPath); err == nil {
-		if appendOnly {
-			w.WriteHeader(http.StatusConflict)
-			json.NewEncoder(w).Encode(UploadResponse{
-				Success: false,
-				Error:   "File already exists. Overwriting is disabled (append-only mode).",
-			})
-			return
-		}
-		replaced = true
+	var mimeType string
+	if ext := strings.ToLower(filepath.Ext(displayName)); ext != "" {
+		mimeType = mime.TypeByExtension(ext)
+	}
+
+	// Reserve a db record (and slug) up front: unless append-only, this also
+	// soft-deletes any existing live record for the same display name.
+	rec, replacedRec, err := reserveUpload(displayName, mimeType)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(UploadResponse{
+			Success: false,
+			Error:   "Failed to reserve upload: " + err.Error(),
+		})
+		return
+	}
+
+	destPath := filepath.Join(uploadFolder, rec.StorageKey)
+	if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+		_ = abortUpload(rec.Slug)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(UploadResponse{
+			Success: false,
+			Error:   "Failed to create storage directory: " + err.Error(),
+		})
+		return
 	}
 
 	// Create destination file
 	dst, err := os.Create(destPath)
 	if err != nil {
+		_ = abortUpload(rec.Slug)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(UploadResponse{
 			Success: false,
@@ -113,6 +132,7 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		dst.Close()
 		os.Remove(destPath)
+		_ = abortUpload(rec.Slug)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(UploadResponse{
 			Success: false,
@@ -123,6 +143,7 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	if written > maxContentLength {
 		dst.Close()
 		os.Remove(destPath)
+		_ = abortUpload(rec.Slug)
 		w.WriteHeader(http.StatusRequestEntityTooLarge)
 		json.NewEncoder(w).Encode(UploadResponse{
 			Success: false,
@@ -131,22 +152,28 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get file info for response
-	fileInfo, err := getFileInfo(destPath)
+	finalRec, err := finalizeUpload(rec.Slug, written, time.Now().UTC().Format(time.RFC3339))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(UploadResponse{
 			Success: false,
-			Error:   "Failed to get file info: " + err.Error(),
+			Error:   "Failed to finalize upload: " + err.Error(),
 		})
 		return
+	}
+
+	// Now that the new upload is live, reclaim the replaced file's blob (best-effort).
+	if replacedRec != nil {
+		if err := os.Remove(filepath.Join(uploadFolder, replacedRec.StorageKey)); err != nil && !os.IsNotExist(err) {
+			log.Printf("Failed to remove replaced file %s: %v", replacedRec.StorageKey, err)
+		}
 	}
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(UploadResponse{
 		Success:  true,
 		Message:  "File uploaded successfully",
-		File:     fileInfo,
-		Replaced: replaced,
+		File:     fileInfoFromRecord(finalRec),
+		Replaced: replacedRec != nil,
 	})
 }

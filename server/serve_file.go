@@ -7,21 +7,11 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-
-	"github.com/gorilla/mux"
 )
 
-func serveFileHandler(w http.ResponseWriter, r *http.Request) {
-	filename := mux.Vars(r)["filename"]
-	serveFileByName(w, r, filename)
-}
-
-// serveFileByName streams filename from uploadFolder, shared by both the
-// direct /api/uploads/{filename} route and the /s/{slug} short link route.
-func serveFileByName(w http.ResponseWriter, r *http.Request, filename string) {
-	// Secure the filename
-	filename = filepath.Base(filepath.Clean(filename))
-	filePath := filepath.Join(uploadFolder, filename)
+// serveFileRecord streams the physical blob backing rec from uploadFolder, used by the /s/{slug} route.
+func serveFileRecord(w http.ResponseWriter, r *http.Request, rec FileRecord) {
+	filePath := filepath.Join(uploadFolder, rec.StorageKey)
 
 	// Check if file exists
 	stat, err := os.Stat(filePath)
@@ -43,10 +33,12 @@ func serveFileByName(w http.ResponseWriter, r *http.Request, filename string) {
 	w.Header().Set("X-Frame-Options", "DENY")
 	w.Header().Set("X-XSS-Protection", "1; mode=block")
 
-	// Detect content type: try by extension first, then sniff up to 512 bytes
-	var contentType string
-	if ext := strings.ToLower(filepath.Ext(filename)); ext != "" {
-		contentType = mime.TypeByExtension(ext)
+	// Detect content type: prefer the stored type, then by display name extension, then sniff
+	contentType := rec.MimeType
+	if contentType == "" {
+		if ext := strings.ToLower(filepath.Ext(rec.DisplayName)); ext != "" {
+			contentType = mime.TypeByExtension(ext)
+		}
 	}
 
 	// If unknown, read up to 512 bytes to sniff the content type
@@ -71,10 +63,10 @@ func serveFileByName(w http.ResponseWriter, r *http.Request, filename string) {
 	w.Header().Set("Content-Length", strconv.FormatInt(stat.Size(), 10))
 
 	// Set Content-Disposition to attachment to prompt download
-	w.Header().Set("Content-Disposition", "attachment; filename=\""+filename+"\"")
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+rec.DisplayName+"\"")
 
 	// Serve the file with proper support for ranges and conditional requests
-	http.ServeContent(w, r, filename, stat.ModTime(), file)
+	http.ServeContent(w, r, rec.DisplayName, stat.ModTime(), file)
 }
 
 // isDangerousContentType checks if a content type could be harmful if executed in a browser

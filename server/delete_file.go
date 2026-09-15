@@ -2,7 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -29,15 +29,19 @@ func deleteFileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	vars := mux.Vars(r)
-	filename := vars["filename"]
+	filename := filepath.Base(filepath.Clean(vars["filename"]))
 
-	// Secure the filename
-	filename = filepath.Base(filepath.Clean(filename))
-	filePath := filepath.Join(uploadFolder, filename)
-
-	// Check if file exists
-	stat, err := os.Stat(filePath)
-	if err != nil || stat.IsDir() {
+	// Soft-delete: the row (and its slug) is kept forever so it can never be reused.
+	rec, err := softDeleteByDisplayName(filename)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(DeleteResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
+	}
+	if rec == nil {
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(DeleteResponse{
 			Success: false,
@@ -46,18 +50,14 @@ func deleteFileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Delete the file
-	if err := os.Remove(filePath); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(DeleteResponse{
-			Success: false,
-			Error:   err.Error(),
-		})
-		return
+	// The record is already marked deleted and will never be served again,
+	// so reclaiming the physical blob is best-effort.
+	if err := os.Remove(filepath.Join(uploadFolder, rec.StorageKey)); err != nil && !os.IsNotExist(err) {
+		log.Printf("Failed to remove deleted file %s: %v", rec.StorageKey, err)
 	}
 
 	json.NewEncoder(w).Encode(DeleteResponse{
 		Success: true,
-		Message: fmt.Sprintf("File %s deleted successfully", filename),
+		Message: "File deleted successfully",
 	})
 }

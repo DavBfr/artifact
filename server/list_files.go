@@ -3,8 +3,6 @@ package main
 import (
 	"encoding/json"
 	"net/http"
-	"os"
-	"path/filepath"
 	"sort"
 )
 
@@ -14,7 +12,6 @@ type FileInfo struct {
 	Modified string `json:"modified"`
 	URL      string `json:"url"`
 	MimeType string `json:"mime_type"`
-	ShortURL string `json:"short_url"`
 }
 
 type ListFilesResponse struct {
@@ -35,9 +32,8 @@ func listFilesRouteHandler(w http.ResponseWriter, r *http.Request) {
 func listFilesHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	files := []FileInfo{}
-
-	entries, err := os.ReadDir(uploadFolder)
+	// The db is the single source of truth for listing - no directory scan.
+	records, err := listLiveRecords()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(ListFilesResponse{
@@ -47,14 +43,9 @@ func listFilesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			filePath := filepath.Join(uploadFolder, entry.Name())
-			fileInfo, err := getFileInfo(filePath)
-			if err == nil {
-				files = append(files, fileInfo)
-			}
-		}
+	files := make([]FileInfo, 0, len(records))
+	for _, rec := range records {
+		files = append(files, fileInfoFromRecord(rec))
 	}
 
 	// Sort by modification time (newest first)

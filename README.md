@@ -48,7 +48,6 @@ Press `alt` to reveal the login button.
 | `ART_NO_LISTING`    | `true` requires a valid API token to call `GET /api/files`         | `false`        |
 | `ART_APPEND_ONLY`   | `true` disables overwriting existing files and all deletions       | `false`        |
 
-
 ### Volume Mounts
 
 - `/var/uploads` - Persistent storage for uploaded files

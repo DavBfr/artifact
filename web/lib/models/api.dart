@@ -203,11 +203,6 @@ class ArtifactApiClient {
       );
     }
   }
-
-  /// Get file URL for viewing/serving
-  String getFileUrl(String fileName) {
-    return '$baseUrl/api/uploads/${Uri.encodeComponent(fileName)}';
-  }
 }
 
 /// Base API exception

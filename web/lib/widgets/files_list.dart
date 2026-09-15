@@ -27,7 +27,7 @@ class _FilesListState extends State<FilesList> {
   String query = '';
 
   void _copyShortLink(FileInfo file) {
-    final shortLink = '${web.window.location.origin}${file.shortUrl}';
+    final shortLink = '${web.window.location.origin}${file.url}';
     web.window.navigator.clipboard.writeText(shortLink);
     NotificationMessenger.of(context).showNotification(
       BulmaNotification.success('Short link copied to clipboard'),

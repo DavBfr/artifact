@@ -11,7 +11,6 @@ class FileInfo {
     required this.modified,
     required this.mimeType,
     required this.url,
-    required this.shortUrl,
   });
 
   factory FileInfo.fromJson(Map<String, dynamic> json) =>
@@ -22,7 +21,6 @@ class FileInfo {
   final String modified;
   final String mimeType;
   final String url;
-  final String shortUrl;
 
   Map<String, dynamic> toJson() => _$FileInfoToJson(this);
 }
