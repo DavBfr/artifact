@@ -13,14 +13,6 @@ type StatsResponse struct {
 	Error      string `json:"error,omitempty"`
 }
 
-func statsRouteHandler(w http.ResponseWriter, r *http.Request) {
-	if noListing {
-		requireToken(statsHandler)(w, r)
-		return
-	}
-	statsHandler(w, r)
-}
-
 func statsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 

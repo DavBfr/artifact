@@ -88,8 +88,8 @@ func main() {
 
 	// API Routes - all under /api/ prefix
 	r.HandleFunc("/api/health", healthCheckHandler).Methods("GET")
-	r.HandleFunc("/api/files", listFilesRouteHandler).Methods("GET")
-	r.HandleFunc("/api/stats", statsRouteHandler).Methods("GET")
+	r.HandleFunc("/api/files", mayRequireToken(listFilesHandler)).Methods("GET")
+	r.HandleFunc("/api/stats", mayRequireToken(statsHandler)).Methods("GET")
 	r.HandleFunc("/api/config", getConfigHandler).Methods("GET")
 	r.HandleFunc("/api/upload", requireToken(uploadFileHandler)).Methods("POST")
 	r.HandleFunc("/api/delete/{slug}", requireToken(deleteFileHandler)).Methods("DELETE")
