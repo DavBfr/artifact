@@ -233,6 +233,125 @@ class ArtifactApiClient {
       );
     }
   }
+
+  /// List the tags attached to a file, by short link slug.
+  Future<FileTagsResponse> listTags(String slug) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/tags/${Uri.encodeComponent(slug)}'),
+      headers: _headers,
+    );
+    return _parseTagsResponse(response, 'list tags');
+  }
+
+  /// Attach tags to a file, by short link slug. A tag that already belongs to
+  /// another file is *moved* to this one rather than rejected - the response
+  /// reports each move in `moved`.
+  Future<FileTagsResponse> addTags(String slug, List<String> tags) async {
+    if (authToken == null || authToken!.isEmpty) {
+      throw AuthenticationException('Authentication token required');
+    }
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/tags/${Uri.encodeComponent(slug)}'),
+      headers: _headers,
+      body: jsonEncode({'tags': tags}),
+    );
+    return _parseTagsResponse(response, 'add tags');
+  }
+
+  /// Detach a single tag from a file, by short link slug. The tag itself is
+  /// free for another file afterwards.
+  Future<FileTagsResponse> removeTag(String slug, String tag) async {
+    if (authToken == null || authToken!.isEmpty) {
+      throw AuthenticationException('Authentication token required');
+    }
+
+    final response = await http.delete(
+      Uri.parse(
+        '$baseUrl/api/tags/${Uri.encodeComponent(slug)}/${Uri.encodeComponent(tag)}',
+      ),
+      headers: _headers,
+    );
+    return _parseTagsResponse(response, 'remove tag');
+  }
+
+  /// Page size used when looking a tag up in the global listing; the server
+  /// caps it at ART_MAX_LIST_LIMIT regardless.
+  static const int _tagLookupLimit = 500;
+
+  /// Returns the file that currently owns [tag], or null when no live file does.
+  /// A tag resolves to exactly one file, so callers use this to warn before a
+  /// tag is moved off another file. A malformed tag returns null too - the add
+  /// call itself is what reports the real error for one.
+  Future<TagInfo?> findTagOwner(String tag) async {
+    final canonical = _canonicalTag(tag);
+    if (canonical == null) return null;
+
+    // The listing's `search` is a substring match, so search by the name and
+    // then match the whole tag exactly.
+    final name = canonical.substring(0, canonical.lastIndexOf(':'));
+    final response = await http.get(
+      Uri.parse(
+        '$baseUrl/api/tags',
+      ).replace(queryParameters: {'search': name, 'limit': '$_tagLookupLimit'}),
+      headers: _headers,
+    );
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        'Failed to look up tag "$canonical"',
+        statusCode: response.statusCode,
+      );
+    }
+
+    final listing = TagListResponse.fromJson(jsonDecode(response.body));
+    for (final info in listing.tags) {
+      if (info.tag == canonical) return info;
+    }
+    return null;
+  }
+
+  /// Splits a tag into the canonical `name:suffix` form the server stores, so an
+  /// exact lookup is possible. A bare name means `:latest`, and anything the
+  /// server would reject (an empty name or suffix) yields null here as well.
+  static String? _canonicalTag(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return null;
+
+    // The server splits on the LAST colon, so mirror that here.
+    final separator = trimmed.lastIndexOf(':');
+    if (separator < 0) return '$trimmed:latest';
+
+    final name = trimmed.substring(0, separator);
+    final suffix = trimmed.substring(separator + 1);
+    if (name.isEmpty || suffix.isEmpty) return null;
+    return '$name:$suffix';
+  }
+
+  /// Shared handling for the tag endpoints: the message on failure is the
+  /// server's, which is far more useful than a generic one (it names the
+  /// offending tag, for instance).
+  FileTagsResponse _parseTagsResponse(http.Response response, String action) {
+    if (response.statusCode == 200) {
+      return FileTagsResponse.fromJson(jsonDecode(response.body));
+    }
+    if (response.statusCode == 401) {
+      throw AuthenticationException('Invalid authentication token');
+    }
+
+    String? message;
+    try {
+      message =
+          (jsonDecode(response.body) as Map<String, dynamic>)['error']
+              as String?;
+    } catch (_) {
+      message = null;
+    }
+    throw ApiException(
+      message ?? 'Failed to $action',
+      statusCode: response.statusCode,
+    );
+  }
 }
 
 /// Base API exception

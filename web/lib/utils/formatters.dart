@@ -32,3 +32,9 @@ String formatTimeAgo(String isoString) {
   final years = seconds ~/ 31536000;
   return '$years year${years != 1 ? 's' : ''} ago';
 }
+
+String formatDateTime(String isoString) {
+  final date = DateTime.parse(isoString).toLocal();
+
+  return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}:${date.second.toString().padLeft(2, '0')}';
+}

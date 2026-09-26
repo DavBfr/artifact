@@ -25,7 +25,7 @@ Press `alt` to reveal the login button.
 - **File Management**: List, download, and delete files
 - **Short Links**: Every uploaded file gets a permanent, non-enumerable `/s/{slug}` link for sharing/downloading
 - **Filename URLs** *(optional)*: `/f/{filename}` always resolves to the latest version of that name; disable via `ART_NO_FILENAME_URL`
-- **File Tags**: Attach docker-style `name:suffix` tags (`cat:latest`, `pets/cat:6.0`) at upload or later; every tag gets a stable `/t/{tag}` link that always resolves to the file it currently points at
+- **File Tags**: Attach docker-style `name:suffix` tags (`cat:latest`, `pets/cat:6.0`) at upload or later; every tag gets a stable `/t/{tag}` link that always resolves to the file it currently points at. The UI shows a file's tags inline (click one to copy its link) and keeps full tag management, along with every other detail, in the file properties dialog
 - **Search & Sort**: Paginated file listing with server-side search and sorting (name, date, size)
 - **Chunked Uploads**: Efficient handling of large files
 - **Health Checks**: Built-in health endpoint for monitoring

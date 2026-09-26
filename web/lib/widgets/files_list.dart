@@ -3,15 +3,19 @@ import 'package:jaspr/jaspr.dart';
 import 'package:universal_web/web.dart' as web;
 
 import '../bulma/bulma.dart';
+import '../models/api.dart';
 import '../models/api_models.dart';
 import '../models/file_icon.dart';
 import '../utils/formatters.dart';
+import 'file_properties_dialog.dart';
 
 class FilesList extends StatefulComponent {
   const FilesList({
     required this.files,
+    required this.api,
     required this.isAuthenticated,
     required this.onDelete,
+    required this.onRefresh,
     required this.searchQuery,
     required this.onSearchChanged,
     required this.hasMore,
@@ -22,8 +26,13 @@ class FilesList extends StatefulComponent {
   });
 
   final List<FileInfo> files;
+  final ArtifactApiClient api;
   final bool isAuthenticated;
-  final void Function(FileInfo) onDelete;
+  final Future<void> Function(FileInfo) onDelete;
+
+  /// Reloads the list after a tag changes. A tag can move between files, so the
+  /// whole page is refreshed rather than patched locally.
+  final VoidCallback onRefresh;
   final String searchQuery;
   final void Function(String) onSearchChanged;
   final bool hasMore;
@@ -51,6 +60,70 @@ class _FilesListState extends State<FilesList> {
     NotificationMessenger.of(context).showNotification(
       BulmaNotification.success('Filename link copied to clipboard'),
     );
+  }
+
+  void _copyTagLink(String tag) {
+    final tagLink = '${web.window.location.origin}/t/$tag';
+    web.window.navigator.clipboard.writeText(tagLink);
+    NotificationMessenger.of(context).showNotification(
+      BulmaNotification.success('Tag link copied to clipboard'),
+    );
+  }
+
+  Future<void> _showProperties(FileInfo file) async {
+    await DialogManager.of(context).showDialog<bool>(
+      (onComplete) => FilePropertiesDialog(
+        file: file,
+        api: component.api,
+        isAuthenticated: component.isAuthenticated,
+        filenameUrlsEnabled: component.filenameUrlsEnabled,
+        onChanged: component.onRefresh,
+        onDelete: () => component.onDelete(file),
+        onClose: () => onComplete(),
+      ),
+    );
+  }
+
+  /// Renders at most two tags inline; any others collapse into a "(+n)" chip
+  /// that opens the properties dialog where every tag is listed.
+  Component _buildTagChips(FileInfo file) {
+    const maxVisibleTags = 5;
+    final visible = file.tags.take(maxVisibleTags).toList();
+    final hidden = file.tags.length - visible.length;
+
+    return div(classes: 'tags mt-2 mb-0', [
+      for (final tag in visible)
+        span(
+          classes: 'tag is-link is-light',
+          attributes: {
+            'style': 'cursor: pointer;',
+            'title': 'Copy link to ${web.window.location.origin}/t/$tag',
+          },
+          events: {
+            'click': (event) {
+              // Copying a tag link must not also open the properties dialog.
+              event.stopPropagation();
+              _copyTagLink(tag);
+            },
+          },
+          [Component.text(_replaceLatest(tag))],
+        ),
+      if (hidden > 0)
+        span(
+          classes: 'tag is-light',
+          attributes: const {
+            'style': 'cursor: pointer;',
+            'title': 'Show all tags',
+          },
+          events: {
+            'click': (event) {
+              event.stopPropagation();
+              _showProperties(file);
+            },
+          },
+          [Component.text('+$hidden')],
+        ),
+    ]);
   }
 
   @override
@@ -133,15 +206,15 @@ class _FilesListState extends State<FilesList> {
           for (final file in component.files) ...[
             div(
               classes: 'panel-block',
-              attributes: const {'style': 'cursor: default;'},
+              attributes: const {'style': 'cursor: pointer;'},
+              events: {'click': (event) => _showProperties(file)},
               [
                 (file.mimeType.startsWith('image/') && file.size < 500 * 1024)
                     ? img(
                         src: file.url,
                         alt: '',
                         attributes: const {
-                          'style':
-                              'width:48px;height:48px;object-fit:cover;border-radius:4px;',
+                          'style': 'width:48px;height:48px;object-fit:cover;border-radius:4px;',
                         },
                         classes: 'mr-3',
                       )
@@ -152,7 +225,7 @@ class _FilesListState extends State<FilesList> {
                         },
                         [i(classes: file.iconClass, const [])],
                       ),
-                // File main column: name and small metadata stacked
+                // File main column: name, small metadata and tags stacked
                 div([
                   div([Component.text(file.name)]),
                   div(classes: 'is-size-7 has-text-grey', [
@@ -160,50 +233,56 @@ class _FilesListState extends State<FilesList> {
                       '${formatTimeAgo(file.modified)} • ${formatBytes(file.size)}',
                     ),
                   ]),
+                  if (file.tags.isNotEmpty) _buildTagChips(file),
                 ]),
-                // Actions aligned to the right
-                div(classes: 'ml-auto', [
-                  button(
-                    classes: 'button is-small is-link is-light mr-2',
-                    attributes: const {'title': 'Copy short link'},
-                    onClick: () => _copyShortLink(file),
-                    const [
-                      span(classes: 'icon', [i(classes: 'fas fa-link', [])]),
-                    ],
-                  ),
-                  if (component.filenameUrlsEnabled)
+                // Actions aligned to the right. Clicks in here must not bubble
+                // up to the row, which opens the properties dialog.
+                div(
+                  classes: 'ml-auto',
+                  events: {'click': (event) => event.stopPropagation()},
+                  [
                     button(
-                      classes: 'button is-small is-info is-light mr-2',
-                      attributes: const {'title': 'Copy filename link'},
-                      onClick: () => _copyFilenameLink(file),
+                      classes: 'button is-small is-link is-light mr-2',
+                      attributes: const {'title': 'Copy short link'},
+                      onClick: () => _copyShortLink(file),
                       const [
-                        span(classes: 'icon', [
-                          i(classes: 'fas fa-file-signature', []),
-                        ]),
+                        span(classes: 'icon', [i(classes: 'fas fa-link', [])]),
                       ],
                     ),
-                  a(
-                    href: file.url,
-                    classes: 'button is-small is-primary is-light mr-2',
-                    attributes: const {'download': ''},
-                    const [
-                      span(classes: 'icon', [
-                        i(classes: 'fas fa-download', []),
-                      ]),
-                      span([Component.text('Download')]),
-                    ],
-                  ),
-                  if (component.isAuthenticated)
-                    button(
-                      classes: 'button is-small is-danger is-light',
-                      onClick: () => component.onDelete(file),
+                    if (component.filenameUrlsEnabled)
+                      button(
+                        classes: 'button is-small is-info is-light mr-2',
+                        attributes: const {'title': 'Copy filename link'},
+                        onClick: () => _copyFilenameLink(file),
+                        const [
+                          span(classes: 'icon', [
+                            i(classes: 'fas fa-file-signature', []),
+                          ]),
+                        ],
+                      ),
+                    a(
+                      href: file.url,
+                      classes: 'button is-small is-primary is-light mr-2',
+                      attributes: const {'download': ''},
                       const [
                         span(classes: 'icon', [
-                          i(classes: 'fas fa-trash-alt', []),
+                          i(classes: 'fas fa-download', []),
                         ]),
+                        span([Component.text('Download')]),
                       ],
                     ),
-                ]),
+                    if (component.isAuthenticated)
+                      button(
+                        classes: 'button is-small is-danger is-light',
+                        onClick: () => component.onDelete(file),
+                        const [
+                          span(classes: 'icon', [
+                            i(classes: 'fas fa-trash-alt', []),
+                          ]),
+                        ],
+                      ),
+                  ],
+                ),
               ],
             ),
           ],
@@ -220,5 +299,10 @@ class _FilesListState extends State<FilesList> {
             ]),
         ]),
     ]);
+  }
+
+  String _replaceLatest(String tag) {
+    if (tag.endsWith(':latest')) return tag.substring(0, tag.length - 7);
+    return tag;
   }
 }

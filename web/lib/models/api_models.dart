@@ -13,6 +13,7 @@ class FileInfo {
     required this.modified,
     required this.mimeType,
     required this.url,
+    this.tags = const <String>[],
   });
 
   factory FileInfo.fromJson(Map<String, dynamic> json) =>
@@ -23,6 +24,12 @@ class FileInfo {
   final String modified;
   final String mimeType;
   final String url;
+
+  /// Tags attached to this file, each in `name:suffix` form (e.g. `cat:latest`).
+  /// The server always sends an array, but this defaults to empty so a response
+  /// from an older server still parses.
+  @JsonKey(defaultValue: <String>[])
+  final List<String> tags;
 
   // The short link slug (the last path segment of `url`, e.g. "/s/aB3xQ").
   String get slug => url.split('/').last;
@@ -169,4 +176,96 @@ class DeleteResponse {
   final String? error;
 
   Map<String, dynamic> toJson() => _$DeleteResponseToJson(this);
+}
+
+/// Response of the tag endpoints: the file's full tag list *after* the
+/// operation, plus which tags were re-pointed from another file.
+@JsonSerializable()
+class FileTagsResponse {
+  FileTagsResponse({
+    required this.success,
+    this.slug = '',
+    this.tags = const <String>[],
+    this.moved,
+    this.message,
+    this.error,
+  });
+
+  factory FileTagsResponse.fromJson(Map<String, dynamic> json) =>
+      _$FileTagsResponseFromJson(json);
+
+  final bool success;
+
+  @JsonKey(defaultValue: '')
+  final String slug;
+
+  @JsonKey(defaultValue: <String>[])
+  final List<String> tags;
+
+  /// Tags that were moved away from another file, keyed by tag with the
+  /// previous file's slug as the value (e.g. `{"cat:latest": "aB3xQ"}`).
+  final Map<String, String>? moved;
+  final String? message;
+  final String? error;
+
+  Map<String, dynamic> toJson() => _$FileTagsResponseToJson(this);
+}
+
+/// A tag and the file it currently points at, as returned by `GET /api/tags`.
+@JsonSerializable(fieldRename: FieldRename.snake)
+class TagInfo {
+  TagInfo({
+    required this.name,
+    required this.suffix,
+    required this.tag,
+    required this.slug,
+    required this.url,
+    this.fileName = '',
+    this.created = '',
+  });
+
+  factory TagInfo.fromJson(Map<String, dynamic> json) =>
+      _$TagInfoFromJson(json);
+
+  final String name;
+  final String suffix;
+
+  /// The canonical `name:suffix` form.
+  final String tag;
+
+  /// The slug of the file this tag resolves to.
+  final String slug;
+
+  /// The `/t/{tag}` download path.
+  final String url;
+
+  /// Display name of the file the tag resolves to.
+  @JsonKey(defaultValue: '')
+  final String fileName;
+  final String created;
+
+  Map<String, dynamic> toJson() => _$TagInfoToJson(this);
+}
+
+/// Response of `GET /api/tags`.
+@JsonSerializable()
+class TagListResponse {
+  TagListResponse({
+    required this.success,
+    this.tags = const <TagInfo>[],
+    this.count = 0,
+    this.error,
+  });
+
+  factory TagListResponse.fromJson(Map<String, dynamic> json) =>
+      _$TagListResponseFromJson(json);
+
+  final bool success;
+
+  @JsonKey(defaultValue: <TagInfo>[])
+  final List<TagInfo> tags;
+  final int count;
+  final String? error;
+
+  Map<String, dynamic> toJson() => _$TagListResponseToJson(this);
 }

@@ -34,9 +34,9 @@ Allow authenticated users to rename files after upload. Add rename API endpoint 
 
 Allow users to add descriptions, tags, or custom metadata to files.
 
-**Tags: backend done.** Files carry docker-style `name:suffix` tags (`cat:latest`, `pets/cat:6.0`), stored in a sqlite table keyed on `(name, suffix)` with a foreign key to the file record. Upload accepts repeated `tags` form fields, `GET /t/{tag}` downloads whatever a tag currently points at, and `GET /api/tags`, `GET /api/tags/{slug}`, `POST /api/tags/{slug}` and `DELETE /api/tags/{slug}/{tag}` list and manage them. A tag moves rather than being duplicated (it always resolves to exactly one file), and tag names are freed when their file is deleted.
+**Tags: backend and UI done.** Files carry docker-style `name:suffix` tags (`cat:latest`, `pets/cat:6.0`), stored in a sqlite table keyed on `(name, suffix)` with a foreign key to the file record. Upload accepts repeated `tags` form fields, `GET /t/{tag}` downloads whatever a tag currently points at, and `GET /api/tags`, `GET /api/tags/{slug}`, `POST /api/tags/{slug}` and `DELETE /api/tags/{slug}/{tag}` list and manage them. A tag moves rather than being duplicated (it always resolves to exactly one file), and tag names are freed when their file is deleted. The file list shows each file's tags (click one to copy its `/t/{tag}` link, with a `(+n)` chip beyond two) and the file properties dialog does the full add/remove.
 
-**Remaining:** surface tags in the web UI (show them on file rows, add a tag filter) and add free-text descriptions/custom metadata.
+**Remaining:** a tag filter in the file list, and free-text descriptions/custom metadata.
 
 ### 8. Add file versioning support
 

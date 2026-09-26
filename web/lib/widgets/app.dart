@@ -228,8 +228,10 @@ class AppState extends State<App> {
           // Files List
           FilesList(
             files: _files!,
+            api: _api,
             isAuthenticated: _api.isAuthenticated,
             onDelete: _delete,
+            onRefresh: _load,
             searchQuery: _searchQuery,
             onSearchChanged: _onSearchChanged,
             hasMore: _hasMore,

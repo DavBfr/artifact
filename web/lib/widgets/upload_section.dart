@@ -152,8 +152,7 @@ class _UploadSectionState extends State<UploadSection> {
           'click': _onUploadZoneClick,
         },
         attributes: const {
-          'style':
-              'border: 2px dashed #dbdbdb; border-radius: 6px; transition: all 0.3s ease;',
+          'style': 'border: 2px dashed #dbdbdb; border-radius: 6px; transition: all 0.3s ease;',
         },
         [
           const div(classes: 'mb-4', [
@@ -193,8 +192,7 @@ class _UploadSectionState extends State<UploadSection> {
                   classes: 'input is-small is-family-monospace',
                   events: {'click': (Event e) => e.stopPropagation()},
                   attributes: const {
-                    'value':
-                        'curl -H "Authorization: Bearer {token}" ... -F "file=@example.zip"',
+                    'value': 'curl -H "Authorization: Bearer {token}" ... -F "tags=example.zip:latest" -F "file=@example.zip"',
                     'readonly': 'true',
                   },
                 ),

@@ -34,7 +34,7 @@ func requireToken(next http.HandlerFunc) http.HandlerFunc {
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(Response{
 				Success: false,
-				Error:   "Authentication required. Provide token in Authorization header or token form field.",
+				Error:   "Authentication required. Provide a token in the Authorization header.",
 			})
 			return
 		}
