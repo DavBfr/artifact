@@ -4,13 +4,6 @@ This document outlines potential improvements and feature additions for the Arti
 
 ## 🎨 User Experience Enhancements
 
-### 1. Add search/filter functionality for files
-
-**Priority:** High
-**Effort:** Low
-
-Implement client-side search to filter files by name. Add search bar in `files_list.dart` that filters the displayed files based on user input. This is especially useful when there are many files uploaded.
-
 ### 2. Add file sorting options
 
 **Priority:** High
@@ -18,26 +11,12 @@ Implement client-side search to filter files by name. Add search bar in `files_l
 
 Add ability to sort files by name, size, or date (ascending/descending). Add sorting dropdown or clickable column headers in `files_list.dart`. Currently files are sorted in `upload_server.go` but only by name ascending.
 
-### 3. Implement pagination for large file lists
-
-**Priority:** Medium
-**Effort:** Medium
-
-When there are many files, implement pagination or virtual scrolling to improve performance. Add pagination controls or infinite scroll in `files_list.dart`. Consider adding pagination support to the backend API as well.
-
 ### 4. Add bulk file operations
 
 **Priority:** Medium
 **Effort:** High
 
 Allow users to select multiple files for batch operations (download as zip, bulk delete). Add checkboxes to file items, selection state management, and bulk action buttons. Requires backend support for zip creation.
-
-### 5. Add file preview capabilities
-
-**Priority:** Medium
-**Effort:** Medium
-
-Implement preview modal for common file types (images, PDFs, text files, code). Add modal component and file type detection. Could use browser native rendering or libraries like pdf.js for PDFs.
 
 ## 📁 File Management Features
 
@@ -85,26 +64,13 @@ Allow setting expiration dates on files (auto-delete after N days). Add optional
 
 Generate temporary, shareable links for files without requiring authentication. Add share link generation endpoint, token-based access, and share button in UI with copy-to-clipboard functionality.
 
-### 12. Add download statistics and analytics
+### 12. Add download statistics and analytics (OTLP)
 
 **Priority:** Low
 **Effort:** Medium
 
 Track download counts, last accessed time, and access patterns. Store stats in metadata or database. Display in file details and add analytics dashboard showing most downloaded files.
 
-### 13. Implement folder/directory support
-
-**Priority:** Medium
-**Effort:** High
-
-Add ability to organize files into folders. Update backend to support directory structure, add folder creation/navigation UI, and breadcrumb navigation. Update API endpoints to handle paths.
-
-### 14. Add compression support
-
-**Priority:** Low
-**Effort:** Medium
-
-Add option to compress files on upload (gzip/brotli) to save storage space. Add decompression on download. Add toggle in upload UI and compression ratio stats.
 
 ### 15. Implement multi-user support with roles
 
@@ -187,7 +153,7 @@ Calculate and verify file checksums (SHA256) to ensure integrity. Store checksum
 
 Generate OpenAPI specification for the REST API. Add Swagger UI endpoint to serve interactive API documentation. Document all endpoints, request/response schemas, and authentication.
 
-### 26. Add logging and audit trail
+### 26. Add logging and audit trail (OTLP)
 
 **Priority:** High
 **Effort:** Medium
@@ -241,7 +207,6 @@ Implement useful keyboard shortcuts (e.g., Ctrl+U for upload, Delete for delete 
 
 ## Quick Wins (High Priority + Low Effort)
 
-1. Add search/filter functionality for files (#1)
 2. Add file sorting options (#2)
 3. Implement storage quota and limits (#9)
 4. Implement file sharing links (#11)
