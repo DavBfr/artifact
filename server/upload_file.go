@@ -39,7 +39,11 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Tags may be sent before or after the file part, so they're collected on
+	// both passes: here while scanning for the file, and again once the file has
+	// been streamed (the reader can only reach later parts after earlier ones).
 	var part *multipart.Part
+	var rawTags []string
 	for {
 		p, err := reader.NextPart()
 		if err == io.EOF {
@@ -57,7 +61,19 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 			part = p
 			break
 		}
+		value, isTag, tagErr := readTagField(p)
 		p.Close()
+		if tagErr != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(UploadResponse{
+				Success: false,
+				Error:   tagErr.Error(),
+			})
+			return
+		}
+		if isTag {
+			rawTags = append(rawTags, value)
+		}
 	}
 
 	if part == nil {
@@ -152,12 +168,87 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The file part has been consumed, so any parts after it are reachable now.
+	for {
+		p, err := reader.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			dst.Close()
+			os.Remove(destPath)
+			_ = abortUpload(rec.Slug)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(UploadResponse{
+				Success: false,
+				Error:   "Failed to parse form: " + err.Error(),
+			})
+			return
+		}
+		value, isTag, tagErr := readTagField(p)
+		p.Close()
+		if tagErr != nil {
+			dst.Close()
+			os.Remove(destPath)
+			_ = abortUpload(rec.Slug)
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(UploadResponse{
+				Success: false,
+				Error:   tagErr.Error(),
+			})
+			return
+		}
+		if isTag {
+			rawTags = append(rawTags, value)
+		}
+	}
+
+	// Validate the tags before the upload goes live: a bad tag must not leave a
+	// half-configured file behind.
+	tags, err := parseTagList(rawTags)
+	if err != nil {
+		dst.Close()
+		os.Remove(destPath)
+		_ = abortUpload(rec.Slug)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(UploadResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
+	}
+
 	finalRec, err := finalizeUpload(rec.Slug, written, time.Now().UTC().Format(time.RFC3339))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(UploadResponse{
 			Success: false,
 			Error:   "Failed to finalize upload: " + err.Error(),
+		})
+		return
+	}
+
+	// Point the requested tags at the new upload, then drop whatever tags the
+	// file it superseded still had (except any re-listed just above).
+	replacedSlug := ""
+	if replacedRec != nil {
+		replacedSlug = replacedRec.Slug
+	}
+	if err := applyUploadTags(finalRec.Slug, tags, replacedSlug); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(UploadResponse{
+			Success: false,
+			Error:   "Failed to apply tags: " + err.Error(),
+		})
+		return
+	}
+
+	applied, err := tagsOfSlug(appDB, finalRec.Slug)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(UploadResponse{
+			Success: false,
+			Error:   err.Error(),
 		})
 		return
 	}
@@ -173,7 +264,24 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(UploadResponse{
 		Success:  true,
 		Message:  "File uploaded successfully",
-		File:     fileInfoFromRecord(finalRec),
+		File:     fileInfoFromRecord(finalRec, applied),
 		Replaced: replacedRec != nil,
 	})
+}
+
+// readTagField reads a "tags" form field, reporting whether p was a tags field
+// at all. The value is size-capped and trimmed, and an empty value is left for
+// parseTag to reject rather than being silently dropped.
+func readTagField(p *multipart.Part) (string, bool, error) {
+	if p.FormName() != "tags" {
+		return "", false, nil
+	}
+	value, err := io.ReadAll(io.LimitReader(p, maxTagFieldSize+1))
+	if err != nil {
+		return "", true, fmt.Errorf("Failed to read tags field: %v", err)
+	}
+	if len(value) > maxTagFieldSize {
+		return "", true, fmt.Errorf("Tag is too long (max %d bytes)", maxTagFieldSize)
+	}
+	return strings.TrimSpace(string(value)), true, nil
 }

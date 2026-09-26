@@ -36,9 +36,10 @@ type FileRecord struct {
 	Pending bool
 }
 
-// initSchema creates the files table (and its indexes) if they don't exist yet.
+// initSchema creates the file and tag tables (and their indexes) if they don't
+// exist yet.
 func initSchema() error {
-	_, err := appDB.Exec(`
+	if _, err := appDB.Exec(`
 		CREATE TABLE IF NOT EXISTS files (
 			slug         TEXT PRIMARY KEY,
 			display_name TEXT NOT NULL,
@@ -51,7 +52,10 @@ func initSchema() error {
 		);
 		CREATE INDEX IF NOT EXISTS idx_files_display_name ON files(display_name);
 		CREATE INDEX IF NOT EXISTS idx_files_live ON files(deleted, pending);
-	`)
+	`); err != nil {
+		return err
+	}
+	_, err := appDB.Exec(tagsDDL)
 	return err
 }
 
@@ -83,6 +87,7 @@ func isUniqueConstraintErr(err error) bool {
 // execer is satisfied by both *sql.DB and *sql.Tx.
 type execer interface {
 	Exec(query string, args ...any) (sql.Result, error)
+	Query(query string, args ...any) (*sql.Rows, error)
 	QueryRow(query string, args ...any) *sql.Row
 }
 
@@ -306,8 +311,11 @@ func finalizeUpload(slug string, size int64, modified string) (FileRecord, error
 // abortUpload marks a reserved record as deleted after a failed write so its
 // slug is never reused, without ever leaving it visible as a live file.
 func abortUpload(slug string) error {
-	_, err := appDB.Exec("UPDATE files SET deleted = 1, pending = 0 WHERE slug = ?", slug)
-	return err
+	if _, err := appDB.Exec("UPDATE files SET deleted = 1, pending = 0 WHERE slug = ?", slug); err != nil {
+		return err
+	}
+	// A tag must never resolve to a file whose upload died half-way.
+	return deleteTagsForSlug(appDB, slug)
 }
 
 // softDeleteBySlug marks the live record for slug as deleted, keeping the row
@@ -331,6 +339,11 @@ func softDeleteBySlug(slug string) (*FileRecord, error) {
 		return nil, err
 	}
 	if _, err := tx.Exec("UPDATE files SET deleted = 1 WHERE slug = ?", rec.Slug); err != nil {
+		return nil, err
+	}
+	// Tags only ever describe live files, so they go with the file. This is what
+	// frees the tag names for reuse (the slug itself is never reused).
+	if err := deleteTagsForSlug(tx, rec.Slug); err != nil {
 		return nil, err
 	}
 	if err := tx.Commit(); err != nil {

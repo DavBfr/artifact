@@ -63,7 +63,7 @@ func main() {
 	}
 	defer appDB.Close()
 	appDB.SetMaxOpenConns(1)
-	if _, err := appDB.Exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;"); err != nil {
+	if _, err := appDB.Exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;"); err != nil {
 		log.Fatalf("Failed to configure database: %v", err)
 	}
 	if err := initSchema(); err != nil {
@@ -95,8 +95,16 @@ func main() {
 	r.HandleFunc("/api/delete/{slug}", requireToken(deleteFileHandler)).Methods("DELETE")
 	r.HandleFunc("/api/uploads/{filename}", filenameURLHandler).Methods("GET")
 
+	// File tag API Routes. Reading tags follows the listing policy
+	// (public unless ART_NO_LISTING); changing them always needs the token.
+	r.HandleFunc("/api/tags", mayRequireToken(listAllTagsHandler)).Methods("GET")
+	r.HandleFunc("/api/tags/{slug}", mayRequireToken(listFileTagsHandler)).Methods("GET")
+	r.HandleFunc("/api/tags/{slug}", requireToken(addFileTagsHandler)).Methods("POST")
+	r.HandleFunc("/api/tags/{slug}/{tag:.+}", requireToken(removeFileTagHandler)).Methods("DELETE")
+
 	// File download API Routes
 	r.HandleFunc("/s/{slug}", shortLinkHandler).Methods("GET")
+	r.HandleFunc("/t/{tag:.+}", tagDownloadHandler).Methods("GET")
 	r.HandleFunc("/f/{filename}", filenameURLHandler).Methods("GET")
 
 	// Static files served as fallback (no /static/ prefix)

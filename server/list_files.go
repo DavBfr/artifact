@@ -6,11 +6,12 @@ import (
 )
 
 type FileInfo struct {
-	Name     string `json:"name"`
-	Size     int64  `json:"size"`
-	Modified string `json:"modified"`
-	URL      string `json:"url"`
-	MimeType string `json:"mime_type"`
+	Name     string   `json:"name"`
+	Size     int64    `json:"size"`
+	Modified string   `json:"modified"`
+	URL      string   `json:"url"`
+	MimeType string   `json:"mime_type"`
+	Tags     []string `json:"tags"`
 }
 
 type ListFilesResponse struct {
@@ -48,9 +49,24 @@ func listFilesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// One extra query decorates the whole page with its tags (no N+1).
+	slugs := make([]string, 0, len(records))
+	for _, rec := range records {
+		slugs = append(slugs, rec.Slug)
+	}
+	tagsBySlug, err := tagsForSlugs(slugs)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(ListFilesResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
+	}
+
 	files := make([]FileInfo, 0, len(records))
 	for _, rec := range records {
-		files = append(files, fileInfoFromRecord(rec))
+		files = append(files, fileInfoFromRecord(rec, tagsBySlug[rec.Slug]))
 	}
 
 	json.NewEncoder(w).Encode(ListFilesResponse{
