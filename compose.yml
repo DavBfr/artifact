@@ -29,6 +29,9 @@ services:
       - ART_OIDC_CLIENT_SECRET
       - ART_OIDC_SCOPES
       - ART_OIDC_REDIRECT_URL
+      - ART_OIDC_GROUPS_CLAIM
+      - ART_OIDC_GROUPS
+      - ART_ROLES
       - ART_STORAGE
       - ART_S3_BUCKET
       - ART_S3_PREFIX
