@@ -1,3 +1,4 @@
+import 'package:jaspr/dom.dart';
 import 'package:jaspr/jaspr.dart';
 
 import '../bulma/bulma.dart';
@@ -10,6 +11,7 @@ class NavBar extends StatelessComponent {
     required this.onRefresh,
     this.altPressed = false,
     this.showTitleAndRefresh = false,
+    this.sessionLabel,
     super.key,
   });
   final bool isAuthenticated;
@@ -17,6 +19,10 @@ class NavBar extends StatelessComponent {
   final void Function() onRefresh;
   final bool altPressed;
   final bool showTitleAndRefresh;
+
+  /// Who is signed in, decoded from the session token for display only. Null
+  /// for the static token, which carries no identity.
+  final String? sessionLabel;
 
   @override
   Component build(BuildContext context) {
@@ -31,6 +37,14 @@ class NavBar extends StatelessComponent {
       ),
 
       BulmaNavbarPosition.end([
+        if (isAuthenticated && sessionLabel != null)
+          BulmaNavbarItem(
+            child: span(classes: 'tag is-light is-medium', [
+              const span(classes: 'icon', [i(classes: 'fas fa-user', [])]),
+              span([Component.text(sessionLabel!)]),
+            ]),
+          ),
+
         if (isAuthenticated)
           BulmaNavbarItem(
             child: BulmaButton(

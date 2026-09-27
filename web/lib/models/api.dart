@@ -13,9 +13,11 @@ class ArtifactApiClient {
   ArtifactApiClient({required this.baseUrl, this.authToken});
 
   factory ArtifactApiClient.base({String? authToken}) {
-    final baseUrl = kDebugMode
-        ? 'http://127.0.0.1:9080'
-        : Uri.base.toString().replaceAll(RegExp(r'\/$'), '');
+    // The origin only - never the page path, query or fragment. A query string
+    // would otherwise be baked into every request (turning `/api/config` into a
+    // request for `/`), and the OIDC callback deliberately arrives with a
+    // fragment in the URL.
+    final baseUrl = kDebugMode ? 'http://127.0.0.1:9080' : Uri.base.origin;
     return ArtifactApiClient(baseUrl: baseUrl, authToken: authToken);
   }
 

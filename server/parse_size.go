@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func parseBool(s string, defaultValue bool) bool {
@@ -55,4 +57,35 @@ func parseSize(s string, defaultSize int64) int64 {
 	}
 
 	return defaultSize
+}
+
+// parseDuration parses a Go duration ("12h", "90m") and additionally accepts a
+// "d" suffix for days ("30d"), which time.ParseDuration does not support. A
+// plain "0" is valid and means "no expiry" for the callers that allow it.
+func parseDuration(s string) (time.Duration, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, fmt.Errorf("empty duration")
+	}
+
+	if days, ok := strings.CutSuffix(s, "d"); ok {
+		value, err := strconv.ParseFloat(days, 64)
+		if err != nil {
+			return 0, fmt.Errorf("invalid duration %q", s)
+		}
+		if value < 0 {
+			return 0, fmt.Errorf("negative duration %q", s)
+		}
+		return time.Duration(value * float64(24*time.Hour)), nil
+	}
+
+	value, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, fmt.Errorf("invalid duration %q", s)
+	}
+	if value < 0 {
+		return 0, fmt.Errorf("negative duration %q", s)
+	}
+
+	return value, nil
 }

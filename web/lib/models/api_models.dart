@@ -109,6 +109,7 @@ class ConfigResponse {
     this.maxContentLength = 100 * 1024 * 1024,
     this.maxListLimit = 500,
     this.error,
+    this.oidcEnabled = false,
   });
 
   factory ConfigResponse.fromJson(Map<String, dynamic> json) =>
@@ -120,6 +121,11 @@ class ConfigResponse {
   final int maxContentLength;
   final int maxListLimit;
   final bool filenameUrlsEnabled;
+
+  /// Whether the server offers a provider (OIDC) login. When set, the login
+  /// button sends the browser to the provider instead of asking for a token.
+  final bool oidcEnabled;
+
   final String? error;
 
   int get pageSize => min(maxListLimit, 50);

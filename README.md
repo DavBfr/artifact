@@ -41,22 +41,96 @@ Press `alt` to reveal the login button.
 
 ### Environment Variables
 
-| Variable              | Description                                                                       | Default        |
-| --------------------- | --------------------------------------------------------------------------------- | -------------- |
-| `ART_API_TOKEN`       | Authentication token for API access (required for uploads/deletes)                | None           |
-| `ART_PORT`            | Port to listen on                                                                 | `8080`         |
-| `ART_UPLOAD_FOLDER`   | Directory to store uploaded files and the sqlite file-record database             | `/var/uploads` |
-| `ART_STATIC_FOLDER`   | Directory for static web files                                                    | `/app/static`  |
-| `ART_MAX_FILE_SIZE`   | Maximum file size (e.g., "100M", "1G")                                            | `100M`         |
-| `ART_WEB_PORTAL`      | Serve the web interface. `false` disables it entirely (404s)                      | `true`         |
-| `ART_NO_LISTING`      | `true` requires a valid API token to call `GET /api/files` and `GET /api/stats`   | `false`        |
-| `ART_APPEND_ONLY`     | `true` keeps every upload as a separate file (no replacing) and disables deletion | `false`        |
-| `ART_MAX_LIST_LIMIT`  | Hard cap on the number of files returned per `GET /api/files` request             | `500`          |
-| `ART_NO_FILENAME_URL` | `true` disables `GET /f/{filename}` entirely (404s)                               | `false`        |
+| Variable                 | Description                                                                       | Default                               |
+| ------------------------ | --------------------------------------------------------------------------------- | ------------------------------------- |
+| `ART_API_TOKEN`          | Authentication token for API access (required for uploads/deletes)                | None                                  |
+| `ART_SESSION_SECRET`     | Signing key for session tokens. Enables token auth on its own (min. 32 chars)     | None                                  |
+| `ART_SESSION_TTL`        | Lifetime of a session token minted by an OIDC login (e.g. `12h`, `30d`)           | `12h`                                 |
+| `ART_OIDC_ISSUER`        | OIDC issuer URL; set with the client id to enable provider login                  | None                                  |
+| `ART_OIDC_CLIENT_ID`     | OIDC client id registered with the provider                                       | None                                  |
+| `ART_OIDC_CLIENT_SECRET` | OIDC client secret; omit for a PKCE-only client                                   | None                                  |
+| `ART_OIDC_SCOPES`        | Space-separated OIDC scopes                                                       | `openid profile email`                |
+| `ART_OIDC_REDIRECT_URL`  | Redirect URI sent to the provider; must match its registration                    | `<scheme>://<host>/api/auth/callback` |
+| `ART_PORT`               | Port to listen on                                                                 | `8080`                                |
+| `ART_UPLOAD_FOLDER`      | Directory to store uploaded files and the sqlite file-record database             | `/var/uploads`                        |
+| `ART_STATIC_FOLDER`      | Directory for static web files                                                    | `/app/static`                         |
+| `ART_MAX_FILE_SIZE`      | Maximum file size (e.g., "100M", "1G")                                            | `100M`                                |
+| `ART_WEB_PORTAL`         | Serve the web interface. `false` disables it entirely (404s)                      | `true`                                |
+| `ART_NO_LISTING`         | `true` requires a valid API token to call `GET /api/files` and `GET /api/stats`   | `false`                               |
+| `ART_APPEND_ONLY`        | `true` keeps every upload as a separate file (no replacing) and disables deletion | `false`                               |
+| `ART_MAX_LIST_LIMIT`     | Hard cap on the number of files returned per `GET /api/files` request             | `500`                                 |
+| `ART_NO_FILENAME_URL`    | `true` disables `GET /f/{filename}` entirely (404s)                               | `false`                               |
 
 ### Volume Mounts
 
 - `/var/uploads` - Persistent storage for uploaded files (also holds the `artifact.db` sqlite file-record database)
+
+## Authentication
+
+Uploading, deleting and tagging always require a credential; listing and downloading are public
+unless `ART_NO_LISTING=true`.
+
+Two kinds of credential are accepted, as `Authorization: Bearer <token>` or a bare
+`Authorization: <token>`:
+
+1. **`ART_API_TOKEN`** - a shared secret, as before.
+2. **A session token** - an HS256 JWT signed with `ART_SESSION_SECRET`. This is what the
+   browser receives after an OIDC login, and what the `token` command below mints.
+
+`ART_SESSION_SECRET` is a complete authentication configuration on its own: with it set,
+uploads and deletes demand a valid session token instead of reporting that no token is
+configured. It must be at least 32 characters, and tokens carry `iss=artifact-server` and
+`aud=artifact-api`, so a secret shared with another service cannot be used to forge one.
+
+### Issuing API tokens (no OIDC required)
+
+```bash
+# Valid for 30 days
+docker exec artifact-server /app/upload_server token -sub ci -ttl 30d
+
+# Valid for ART_SESSION_TTL, 12h by default
+docker exec artifact-server /app/upload_server token -sub ci
+
+# Never expires - a bearer credential that outlives everything but a secret rotation
+docker exec artifact-server /app/upload_server token -sub build-agent -ttl 0
+```
+
+Only the token goes to stdout, so it can be captured directly:
+
+```bash
+TOKEN=$(docker exec artifact-server /app/upload_server token -sub ci -ttl 720h)
+curl -H "Authorization: Bearer $TOKEN" -F "file=@build.zip" http://localhost:8080/api/upload
+```
+
+**Rotating `ART_SESSION_SECRET` invalidates every session and every minted token at once.**
+There is no revocation list and no way to log out a single user, so rotation is the lever for
+an emergency logoff.
+
+### OpenID Connect
+
+Setting both `ART_OIDC_ISSUER` and `ART_OIDC_CLIENT_ID` (alongside the required
+`ART_SESSION_SECRET`) switches the web UI to provider login. Register this exact redirect URI
+with the provider first - login fails with a redirect-URI error otherwise:
+
+```text
+http://localhost:8080/api/auth/callback
+```
+
+When OIDC is configured:
+
+- The UI's login button (revealed with `alt`) sends the browser to `/api/auth/login`, which
+  redirects to the provider with PKCE, a `state` and a `nonce`. The provider returns to
+  `/api/auth/callback`. The token form is not offered in the web UI in this mode, although the
+  API still accepts `ART_API_TOKEN`.
+- The callback verifies the `id_token` and mints a session token for the browser
+  (`ART_SESSION_TTL`, 12h by default). The provider's own access token is discarded: only
+  tokens this server signed are accepted.
+- Any identity the provider authenticates gets full upload and delete rights. There is no group
+  or claim check, so restrict access at the provider - for example with a client that only a
+  chosen set of users can authenticate against.
+- The navbar shows who is signed in, decoded from the token for display only.
+- An unreachable provider does not stop the server starting: downloads and the API keep
+  working, and `/api/auth/login` answers `503` until discovery succeeds.
 
 ## Docker Compose Example
 

@@ -22,6 +22,13 @@ services:
       - ART_NO_FILENAME_URL
       - ART_NO_LISTING
       - ART_WEB_PORTAL
+      - ART_SESSION_SECRET
+      - ART_SESSION_TTL
+      - ART_OIDC_ISSUER
+      - ART_OIDC_CLIENT_ID
+      - ART_OIDC_CLIENT_SECRET
+      - ART_OIDC_SCOPES
+      - ART_OIDC_REDIRECT_URL
     restart: unless-stopped
     ports:
       - "9080:8080"

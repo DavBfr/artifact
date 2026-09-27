@@ -7,6 +7,7 @@ import 'package:universal_web/web.dart' as web;
 import '../bulma/bulma.dart';
 import '../models/api.dart';
 import '../models/api_models.dart';
+import '../utils/session_info.dart';
 import '../utils/token_storage.dart';
 import 'auth_dialog.dart';
 import 'files_list.dart';
@@ -28,6 +29,18 @@ class App extends StatefulComponent {
 class AppState extends State<App> {
   late ArtifactApiClient _api;
   ConfigResponse _config = ConfigResponse.empty;
+
+  /// Whether /api/config has answered yet. Until it has, the app cannot know
+  /// whether a provider login is on offer, so the login button waits rather
+  /// than guessing and showing a token form.
+  bool _configLoaded = false;
+
+  /// Who the stored session token says we are. Display only.
+  SessionInfo? _session;
+
+  /// The error code from a failed provider login, reported once the app is up.
+  String? _pendingAuthError;
+
   StatsResponse? _stats;
   List<FileInfo>? _files;
   bool _hasMore = true;
@@ -44,39 +57,95 @@ class AppState extends State<App> {
   void initState() {
     super.initState();
 
+    // A provider login hands the session token back in the URL fragment, and
+    // the fragment is part of the page URL the API client derives its base URL
+    // from, so this has to run before the client is built.
+    _pendingAuthError = SessionInfo.consumeLoginFragment(context);
+
     // Initialize API client with stored token if available
     final storedToken = TokenStorage.getToken(context);
     _api = ArtifactApiClient.base(authToken: storedToken);
+    _session = SessionInfo.fromToken(storedToken);
 
     if (kIsWeb) {
       _load();
     }
   }
 
+  /// The configuration to fall back to when there is no valid session. It keeps
+  /// what the server said about itself - notably whether OIDC is on - because
+  /// that answer does not depend on being signed in.
+  ConfigResponse get _signedOutConfig => ConfigResponse(
+    success: true,
+    oidcEnabled: _config.oidcEnabled,
+    filenameUrlsEnabled: _config.filenameUrlsEnabled,
+  );
+
+  /// Turns a callback error code into something worth reading.
+  String _describeAuthError(String code) {
+    switch (code) {
+      case 'state_missing':
+      case 'state_invalid':
+      case 'state_mismatch':
+        return 'The login response did not match this browser session. Please try again.';
+      case 'state_expired':
+        return 'The login took too long to complete. Please try again.';
+      case 'invalid_id_token':
+      case 'nonce_mismatch':
+        return 'The identity provider returned an unexpected token. Please try again.';
+      case 'provider_unavailable':
+        return 'The identity provider could not be reached. Please try again later.';
+      case 'provider_error':
+        return 'The identity provider refused the login.';
+      default:
+        return 'Login failed ($code). Please try again.';
+    }
+  }
+
   Future<void> _load() async {
+    // A login the provider rejected comes back as a fragment rather than a
+    // token, and is worth telling the user about.
+    final authError = _pendingAuthError;
+    if (authError != null) {
+      _pendingAuthError = null;
+      NotificationMessenger.of(context).showNotification(
+        BulmaNotification.error(
+          _describeAuthError(authError),
+          title: 'Login Failed',
+        ),
+      );
+    }
+
     try {
       final configResponse = await _api.getConfig();
       setState(() {
         _config = configResponse;
+        _configLoaded = true;
       });
     } on AuthenticationException {
-      // A stored token was rejected - show notification and logout.
+      // A stored credential was rejected - drop it and fall back to the
+      // unauthenticated view.
       TokenStorage.removeToken(context);
       setState(() {
-        _config = ConfigResponse.empty;
+        _config = _signedOutConfig;
+        _configLoaded = true;
         _api = ArtifactApiClient.base();
+        _session = null;
       });
 
       // Show error notification
       NotificationMessenger.of(context).showNotification(
         BulmaNotification.error(
-          'Invalid authentication token. Please login again.',
+          _config.oidcEnabled
+              ? 'Your session has expired. Please sign in again.'
+              : 'Invalid authentication token. Please login again.',
           title: 'Authentication Error',
         ),
       );
     } catch (e) {
       setState(() {
-        _config = ConfigResponse.empty;
+        _config = _signedOutConfig;
+        _configLoaded = true;
       });
       NotificationMessenger.of(context).showNotification(
         BulmaNotification.error(
@@ -187,30 +256,33 @@ class AppState extends State<App> {
         }
       },
       div(classes: 'container', [
-        NavBar(
-          isAuthenticated: _api.isAuthenticated,
-          altPressed: _altPressed,
-          showTitleAndRefresh: !(_listingRestricted && !_api.isAuthenticated),
-          onAuthToggle: (value) async {
-            if (value) {
-              await _login();
-            } else {
-              // Logout: remove token and reset API client
-              TokenStorage.removeToken(context);
-              setState(() {
-                _api = ArtifactApiClient.base();
-                _config = ConfigResponse.empty;
-              });
-              await _load();
-            }
-          },
-          onRefresh: _load,
-        ),
+        if (_configLoaded && _files != null)
+          NavBar(
+            isAuthenticated: _api.isAuthenticated,
+            altPressed: _altPressed,
+            sessionLabel: _session?.label,
+            showTitleAndRefresh: !(_listingRestricted && !_api.isAuthenticated),
+            onAuthToggle: (value) async {
+              if (value) {
+                await _login();
+              } else {
+                // Logout: remove token and reset API client
+                TokenStorage.removeToken(context);
+                setState(() {
+                  _api = ArtifactApiClient.base();
+                  _session = null;
+                  _config = _signedOutConfig;
+                });
+                await _load();
+              }
+            },
+            onRefresh: _load,
+          ),
 
-        if (_files == null)
-          const MyLoading()
-        else if (_listingRestricted && !_api.isAuthenticated)
+        if (!_configLoaded || (_listingRestricted && !_api.isAuthenticated))
           _buildRestrictedView()
+        else if (_files == null)
+          const MyLoading()
         else ...[
           // Stats
           StatsCard(stats: _stats),
@@ -335,6 +407,20 @@ class AppState extends State<App> {
   }
 
   Future<void> _login() async {
+    // Whether a token form is even the right thing to offer comes from the
+    // server, so make sure that answer has arrived before deciding.
+    if (!_configLoaded) {
+      await _load();
+    }
+
+    // With OIDC the browser goes to the provider and comes back to the callback;
+    // there is no token for the user to type, so no dialog is offered. The token
+    // form remains reachable only when no provider is configured.
+    if (_config.oidcEnabled) {
+      web.window.location.assign('${_api.baseUrl}/api/auth/login');
+      return;
+    }
+
     // Show login dialog using DialogManager
     final token = await DialogManager.of(context).showDialog<String>(
       (onComplete) => AuthDialog(onLogin: onComplete, onCancel: onComplete),
@@ -345,6 +431,7 @@ class AppState extends State<App> {
     TokenStorage.saveToken(context, token);
     setState(() {
       _api = ArtifactApiClient.base(authToken: token);
+      _session = SessionInfo.fromToken(token);
     });
     await _load();
   }

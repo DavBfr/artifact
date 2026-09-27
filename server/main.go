@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"io"
 
 	"log"
 	"net/http"
@@ -14,6 +15,23 @@ import (
 )
 
 func main() {
+	// Subcommands take over when present. They must not touch the upload folder
+	// or the database, so this runs before any of the server setup below.
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "token":
+			initSessionConfig()
+			os.Exit(runTokenCommand(os.Args[2:]))
+		case "help", "-h", "--help":
+			printUsage(os.Stderr)
+			os.Exit(0)
+		default:
+			fmt.Fprintf(os.Stderr, "unknown command %q\n\n", os.Args[1])
+			printUsage(os.Stderr)
+			os.Exit(2)
+		}
+	}
+
 	// Configuration
 	uploadFolder = os.Getenv("ART_UPLOAD_FOLDER")
 	if uploadFolder == "" {
@@ -29,6 +47,12 @@ func main() {
 	maxContentLength = parseSize(maxFileSizeStr, defaultMaxFileSize)
 
 	apiToken = os.Getenv("ART_API_TOKEN")
+
+	// Session tokens (ART_SESSION_SECRET) are both what the OIDC login mints and
+	// what the `token` command issues. Read before the OIDC config, which
+	// refuses to enable itself without a signing key.
+	initSessionConfig()
+	initOIDCConfig()
 
 	webPortal = parseBool(os.Getenv("ART_WEB_PORTAL"), true)
 	noListing = parseBool(os.Getenv("ART_NO_LISTING"), false)
@@ -102,6 +126,11 @@ func main() {
 	r.HandleFunc("/api/tags/{slug}", requireToken(addFileTagsHandler)).Methods("POST")
 	r.HandleFunc("/api/tags/{slug}/{tag:.+}", requireToken(removeFileTagHandler)).Methods("DELETE")
 
+	// OIDC login. Registered unconditionally - the handlers answer 503 when OIDC
+	// isn't configured, so enabling it is purely a matter of setting env vars.
+	r.HandleFunc("/api/auth/login", oidcLoginHandler).Methods("GET")
+	r.HandleFunc("/api/auth/callback", oidcCallbackHandler).Methods("GET")
+
 	// File download API Routes
 	r.HandleFunc("/s/{slug}", shortLinkHandler).Methods("GET")
 	r.HandleFunc("/t/{tag:.+}", tagDownloadHandler).Methods("GET")
@@ -148,4 +177,19 @@ func main() {
 	if err := http.ListenAndServe(addr, r); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
+}
+
+// printUsage documents the server and its subcommands.
+func printUsage(w io.Writer) {
+	fmt.Fprint(w, `Artifact Server
+
+Usage:
+  upload_server                     Start the server
+  upload_server token -sub <subject> [-ttl <duration>] [-name <name>]
+                                    Mint an API token signed with
+                                    ART_SESSION_SECRET
+  upload_server help                 Show this message
+
+Configuration is read from the environment; see the README for the full list.
+`)
 }
