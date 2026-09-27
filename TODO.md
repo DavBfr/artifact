@@ -1,219 +1,44 @@
 # Artifact Server - TODO List
 
-This document outlines potential improvements and feature additions for the Artifact Server project.
-
-## 🎨 User Experience Enhancements
-
-### 2. Add file sorting options
-
-**Priority:** High
-**Effort:** Low
-
-Add ability to sort files by name, size, or date (ascending/descending). Add sorting dropdown or clickable column headers in `files_list.dart`. Currently files are sorted in `upload_server.go` but only by name ascending.
-
-### 4. Add bulk file operations
-
-**Priority:** Medium
-**Effort:** High
-
-Allow users to select multiple files for batch operations (download as zip, bulk delete). Add checkboxes to file items, selection state management, and bulk action buttons. Requires backend support for zip creation.
-
-## 📁 File Management Features
-
-### 6. Add file rename functionality
-
-**Priority:** Medium
-**Effort:** Low
-
-Allow authenticated users to rename files after upload. Add rename API endpoint in `upload_server.go`, and add rename button/dialog in `files_list.dart`.
-
-### 7. Implement file metadata and tags
-
-**Priority:** Medium
-**Effort:** High
-
-Allow users to add descriptions, tags, or custom metadata to files.
-
-**Tags: backend and UI done.** Files carry docker-style `name:suffix` tags (`cat:latest`, `pets/cat:6.0`), stored in a sqlite table keyed on `(name, suffix)` with a foreign key to the file record. Upload accepts repeated `tags` form fields, `GET /t/{tag}` downloads whatever a tag currently points at, and `GET /api/tags`, `GET /api/tags/{slug}`, `POST /api/tags/{slug}` and `DELETE /api/tags/{slug}/{tag}` list and manage them. A tag moves rather than being duplicated (it always resolves to exactly one file), and tag names are freed when their file is deleted. The file list shows each file's tags (click one to copy its `/t/{tag}` link, with a `(+n)` chip beyond two) and the file properties dialog does the full add/remove.
-
-**Remaining:** a tag filter in the file list, and free-text descriptions/custom metadata.
-
-### 8. Add file versioning support
-
-**Priority:** Low
-**Effort:** High
-
-Instead of replacing files with same name, keep versions. Store files with version suffix and maintain version history. Add API to list versions and UI to view/download specific versions.
-
-### 9. Implement storage quota and limits
-
-**Priority:** High
-**Effort:** Medium
-
-Add configurable storage quota per instance. Track total storage used and display in `stats_card.dart`. Add environment variable for max storage and prevent uploads when quota exceeded.
-
-### 10. Add file expiration/TTL feature
-
-**Priority:** Low
-**Effort:** Medium
-
-Allow setting expiration dates on files (auto-delete after N days). Add optional TTL parameter to upload endpoint, background job to clean expired files, and display expiration date in UI.
-
-## 🔗 Sharing & Collaboration
-
-### 11. Implement file sharing links
-
-**Priority:** High
-**Effort:** Medium
-
-Generate temporary, shareable links for files without requiring authentication. Add share link generation endpoint, token-based access, and share button in UI with copy-to-clipboard functionality.
-
-### 12. Add download statistics and analytics (OTLP)
-
-**Priority:** Low
-**Effort:** Medium
-
-Track download counts, last accessed time, and access patterns. Store stats in metadata or database. Display in file details and add analytics dashboard showing most downloaded files.
-
-
-### 15. Implement multi-user support with roles
-
-**Priority:** Low
-**Effort:** Very High
-
-Add user management with different permission levels (admin, uploader, viewer). Requires user database, registration/login system, and role-based access control in API endpoints.
-
-## 🔧 Backend & Infrastructure
-
-### 16. Add API rate limiting
-
-**Priority:** High
-**Effort:** Medium
-
-Implement rate limiting to prevent API abuse. Add middleware in `upload_server.go` to track requests per IP/token and return 429 Too Many Requests when limits exceeded.
-
-### 17. Add webhook notifications
-
-**Priority:** Low
-**Effort:** Low
-
-Allow configuring webhooks to notify external services on file upload/delete events. Add webhook configuration via environment variables and HTTP POST to webhook URLs on events.
-
-### 18. Implement S3-compatible storage backend
-
-**Priority:** Medium
-**Effort:** High
-
-Add option to store files in S3/MinIO instead of local filesystem. Add storage backend abstraction layer and S3 client configuration via environment variables for cloud deployments.
-
-### 19. Add virus/malware scanning integration
-
-**Priority:** Medium
-**Effort:** High
-
-Integrate with ClamAV or similar to scan uploaded files. Add optional virus scanning step in upload flow, quarantine suspicious files, and display scan status in UI.
-
-## 💻 Developer Experience
-
-### 20. Improve error handling and user feedback
-
-**Priority:** High
-**Effort:** Medium
-
-Add more detailed error messages throughout the application. Improve error handling in API client, add retry logic for failed uploads, and show more informative error notifications to users.
-
-### 21. Add dark mode support
-
-**Priority:** Low
-**Effort:** Low
-
-Implement dark theme toggle using Bulma's dark mode classes or custom CSS. Add theme switcher in navbar and persist preference in localStorage. Update all components to support dark mode.
-
-### 22. Add clipboard paste upload support
-
-**Priority:** Low
-**Effort:** Low
-
-Allow users to paste images/files from clipboard directly. Add paste event listener in `upload_section.dart` that handles clipboard data and uploads files.
-
-### 23. Implement automatic upload retry on failure
-
-**Priority:** Medium
-**Effort:** Low
-
-Add retry mechanism for failed uploads with exponential backoff. Update `api.dart` uploadFile method to retry on network errors, and show retry status in UI.
-
-### 24. Add file integrity checks (checksums)
-
-**Priority:** Medium
-**Effort:** Medium
-
-Calculate and verify file checksums (SHA256) to ensure integrity. Store checksums in metadata, verify on download, and display in file details UI.
-
-### 25. Implement API documentation (OpenAPI/Swagger)
-
-**Priority:** Medium
-**Effort:** Medium
-
-Generate OpenAPI specification for the REST API. Add Swagger UI endpoint to serve interactive API documentation. Document all endpoints, request/response schemas, and authentication.
-
-### 26. Add logging and audit trail (OTLP)
-
-**Priority:** High
-**Effort:** Medium
-
-Implement structured logging for all operations. Log uploads, downloads, deletes with timestamps and user info. Add configurable log levels and optional log export to external systems.
-
-## 🎯 Polish & Performance
-
-### 27. Improve mobile responsiveness
-
-**Priority:** Medium
-**Effort:** Low
-
-Test and improve UI on mobile devices. Ensure drag-and-drop works on touch devices, optimize layout for small screens, and improve button/touch target sizes for mobile users.
-
-### 28. Add file deduplication
-
-**Priority:** Low
-**Effort:** High
-
-Detect duplicate files using content hashing and store only once. Add reference counting for duplicates and display to users when uploading duplicates.
-
-### 29. Implement upload queue and concurrent uploads
-
-**Priority:** Medium
-**Effort:** Medium
-
-Allow multiple files to be queued and uploaded concurrently. Add queue management in `app.dart`, show queue status, and allow users to cancel queued uploads.
-
-### 30. Add keyboard shortcuts
-
-**Priority:** Low
-**Effort:** Low
-
-Implement useful keyboard shortcuts (e.g., Ctrl+U for upload, Delete for delete file, Ctrl+F for search). Extend `key_listener.dart` with more shortcuts and show shortcut help dialog.
-
----
-
-## Priority Legend
-
-- **High:** Core functionality or security-related
-- **Medium:** Enhances usability significantly
-- **Low:** Nice-to-have features
-
-## Effort Legend
-
-- **Low:** 1-2 days
-- **Medium:** 3-5 days
-- **High:** 1-2 weeks
-- **Very High:** 2+ weeks
-
-## Quick Wins (High Priority + Low Effort)
-
-2. Add file sorting options (#2)
-3. Implement storage quota and limits (#9)
-4. Implement file sharing links (#11)
-5. Add API rate limiting (#16)
-6. Improve error handling and user feedback (#20)
-7. Add logging and audit trail (#26)
+## Implemented
+
+- [X] Single-file upload (REST + web UI) with progress
+- [X] Short links (`/s/{slug}`)
+- [X] Filename URLs (`/f/{filename}`)
+- [X] Multi-arch Docker build
+- [X] SQLite file records with soft deletes
+- [X] File tags (`name:suffix`, `/t/{tag}` links, add/remove)
+- [X] Paginated listing with search and sorting
+- [X] Aggregate stats endpoint
+- [X] Shared-token auth (`ART_API_TOKEN`)
+- [X] Session tokens (`ART_SESSION_SECRET`, `token` command)
+- [X] OIDC login
+- [X] Permissions, roles and groups
+- [X] S3-compatible storage backend
+- [X] High availability (one writer, read-only replicas)
+- [X] Health endpoint with replication lag
+- [X] CORS, security headers, non-root container
+- [X] Lock-down modes (`ART_NO_LISTING`, `ART_APPEND_ONLY`, `ART_NO_FILENAME_URL`, `ART_READ_ONLY`)
+
+## Next
+
+- [ ] Undelete / trash
+- [ ] File integrity checks (SHA256)
+- [ ] Bulk file operations
+- [ ] API documentation (OpenAPI/Swagger)
+- [ ] File rename
+- [ ] Retention policy
+  - [ ] Expiration / TTL
+  - [ ] Uuntagged files
+- [ ] API rate limiting
+- [ ] Logging and audit trail (OTLP)
+- [ ] Download statistics and analytics (OTLP)
+- [ ] Webhook notifications
+- [ ] Virus/malware scanning integration
+- [ ] Dark mode support
+
+## Known issues
+
+- [ ] Superseded-file data loss on a failed upload: fixed for `fs`, untested on S3
+- [ ] Tags referenced only by a pending upload are briefly unresolvable
+- [ ] `ART_MAX_LIST_LIMIT` can truncate the UI's tag-owner lookup
