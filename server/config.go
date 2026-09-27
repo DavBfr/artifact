@@ -24,6 +24,16 @@ var (
 	noFilenameURL    bool
 	appDB            *sql.DB
 	maxListLimit     int
+
+	// Blob storage: the local filesystem by default, or an S3 bucket so that
+	// several instances can serve the same files without replicating them.
+	storage     Storage
+	storageKind string
+	s3Bucket    string
+	s3Prefix    string
+	s3Region    string
+	s3Endpoint  string
+	s3PathStyle bool
 )
 
 type ConfigResponse struct {

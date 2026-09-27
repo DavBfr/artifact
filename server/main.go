@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gorilla/mux"
 	_ "modernc.org/sqlite"
@@ -59,15 +60,36 @@ func main() {
 	appendOnly = parseBool(os.Getenv("ART_APPEND_ONLY"), false)
 	noFilenameURL = parseBool(os.Getenv("ART_NO_FILENAME_URL"), false)
 
+	storageKind = strings.ToLower(strings.TrimSpace(os.Getenv("ART_STORAGE")))
+	if storageKind == "" {
+		storageKind = storageFilesystem
+	}
+	if storageKind != storageFilesystem && storageKind != storageS3 {
+		log.Fatalf("ART_STORAGE must be %q or %q (got %q)", storageFilesystem, storageS3, storageKind)
+	}
+	s3Bucket = os.Getenv("ART_S3_BUCKET")
+	s3Prefix = os.Getenv("ART_S3_PREFIX")
+	s3Region = os.Getenv("ART_S3_REGION")
+	s3Endpoint = os.Getenv("ART_S3_ENDPOINT")
+	// S3-compatible stores (MinIO and friends) need bucket-in-path addressing,
+	// so an explicit endpoint implies path style unless told otherwise.
+	s3PathStyle = parseBool(os.Getenv("ART_S3_PATH_STYLE"), s3Endpoint != "")
+
 	maxListLimit = parseInt(os.Getenv("ART_MAX_LIST_LIMIT"), defaultMaxListLimit)
 	if maxListLimit <= 0 {
 		maxListLimit = defaultMaxListLimit
 	}
 
-	// Ensure upload directory exists
+	// Ensure the data directory exists. With s3 storage it only holds the
+	// sqlite database (and its WAL sidecars), not the uploads themselves.
 	if err := os.MkdirAll(uploadFolder, 0755); err != nil {
 		log.Fatalf("Failed to create upload directory: %v", err)
 	}
+
+	if err := initStorage(); err != nil {
+		log.Fatalf("Failed to configure %s storage: %v", storageKind, err)
+	}
+	log.Printf("Blob storage: %s", storageKind)
 
 	// The sqlite db lives directly in uploadFolder (no separate volume). Its
 	// absence beforehand means this is a fresh db, so any pre-existing flat
@@ -94,8 +116,10 @@ func main() {
 		log.Fatalf("Failed to initialize database schema: %v", err)
 	}
 
-	// One-time migration: adopt any pre-existing flat files into the db-backed model
-	if dbIsNew {
+	// One-time migration: adopt any pre-existing flat files into the db-backed
+	// model. Filesystem-only by design: on object storage there is no local
+	// flat-file layout to adopt.
+	if dbIsNew && storageKind == storageFilesystem {
 		if err := importLegacyUploads(); err != nil {
 			log.Printf("Legacy upload import failed: %v", err)
 		}

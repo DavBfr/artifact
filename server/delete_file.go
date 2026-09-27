@@ -3,8 +3,6 @@ package main
 import (
 	"encoding/json"
 	"net/http"
-	"os"
-	"path/filepath"
 
 	"github.com/gorilla/mux"
 )
@@ -50,13 +48,13 @@ func deleteFileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// The record is already marked deleted (and will never be served again)
-	// regardless of what happens next, but the disk removal itself must
+	// regardless of what happens next, but removing the stored bytes must
 	// actually succeed here - it's not best-effort.
-	if err := os.Remove(filepath.Join(uploadFolder, rec.StorageKey)); err != nil && !os.IsNotExist(err) {
+	if err := storage.Delete(r.Context(), rec.StorageKey); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(DeleteResponse{
 			Success: false,
-			Error:   "Failed to remove file from disk: " + err.Error(),
+			Error:   "Failed to remove file data: " + err.Error(),
 		})
 		return
 	}

@@ -29,6 +29,15 @@ services:
       - ART_OIDC_CLIENT_SECRET
       - ART_OIDC_SCOPES
       - ART_OIDC_REDIRECT_URL
+      - ART_STORAGE
+      - ART_S3_BUCKET
+      - ART_S3_PREFIX
+      - ART_S3_REGION
+      - ART_S3_ENDPOINT
+      - ART_S3_PATH_STYLE
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_SESSION_TOKEN
     restart: unless-stopped
     ports:
       - "9080:8080"

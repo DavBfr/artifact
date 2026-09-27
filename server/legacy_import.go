@@ -10,10 +10,15 @@ import (
 )
 
 // importLegacyUploads is a one-time migration, run only when the sqlite db
-// didn't already exist: any flat files already sitting in uploadFolder (from
-// before the db-backed model existed) are registered as records and moved
-// into their slug-sharded storage path. The db file itself (and its -wal/-shm
-// sidecars, now that it lives in uploadFolder too) are skipped.
+// didn't already exist and storage is the local filesystem: any flat files
+// already sitting in uploadFolder (from before the db-backed model existed) are
+// registered as records and moved into their slug-sharded storage path. The db
+// file itself (and its -wal/-shm sidecars, now that it lives in uploadFolder
+// too) are skipped.
+//
+// It deliberately stays on the filesystem rather than going through Storage:
+// it exists to adopt a pre-database directory layout, which only a local disk
+// can have. main.go skips it entirely when ART_STORAGE=s3.
 func importLegacyUploads() error {
 	entries, err := os.ReadDir(uploadFolder)
 	if err != nil {

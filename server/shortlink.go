@@ -26,7 +26,7 @@ var errRecordNotFound = errors.New("record not found")
 type FileRecord struct {
 	Slug        string
 	DisplayName string
-	StorageKey  string // path within uploadFolder, e.g. "ab/cdefgh..."
+	StorageKey  string // key within the blob store, e.g. "ab/cdefgh..."
 	Size        int64
 	Modified    string
 	MimeType    string

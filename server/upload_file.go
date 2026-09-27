@@ -1,14 +1,15 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"mime"
 	"mime/multipart"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -116,54 +117,32 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	destPath := filepath.Join(uploadFolder, rec.StorageKey)
-	if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+	// Abandoning a reserved upload drops both halves of it: the record is marked
+	// deleted (so its slug is never reused) and any blob already written is
+	// removed. The cleanup runs detached from the request so a client that
+	// walked away mid-upload can't leave the blob behind.
+	discard := func() {
+		_ = storage.Delete(context.WithoutCancel(r.Context()), rec.StorageKey)
 		_ = abortUpload(rec.Slug)
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(UploadResponse{
-			Success: false,
-			Error:   "Failed to create storage directory: " + err.Error(),
-		})
-		return
 	}
 
-	// Create destination file
-	dst, err := os.Create(destPath)
+	// Stream the part straight into the blob store. The store enforces the size
+	// limit while reading, since the part's size isn't known ahead of time.
+	written, err := storage.Put(r.Context(), rec.StorageKey, part, maxContentLength)
 	if err != nil {
-		_ = abortUpload(rec.Slug)
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(UploadResponse{
-			Success: false,
-			Error:   "Failed to create file: " + err.Error(),
-		})
-		return
-	}
-	defer dst.Close()
-
-	// Copy file with chunked reading for efficient memory usage, enforcing the
-	// max size limit since the part's size isn't known ahead of time.
-	buffer := make([]byte, chunkSize)
-	limitedReader := io.LimitReader(part, maxContentLength+1)
-	written, err := io.CopyBuffer(dst, limitedReader, buffer)
-	if err != nil {
-		dst.Close()
-		os.Remove(destPath)
-		_ = abortUpload(rec.Slug)
+		discard()
+		if errors.Is(err, errBlobTooLarge) {
+			w.WriteHeader(http.StatusRequestEntityTooLarge)
+			json.NewEncoder(w).Encode(UploadResponse{
+				Success: false,
+				Error:   fmt.Sprintf("File too large. Maximum size is %d bytes", maxContentLength),
+			})
+			return
+		}
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(UploadResponse{
 			Success: false,
 			Error:   "Failed to save file: " + err.Error(),
-		})
-		return
-	}
-	if written > maxContentLength {
-		dst.Close()
-		os.Remove(destPath)
-		_ = abortUpload(rec.Slug)
-		w.WriteHeader(http.StatusRequestEntityTooLarge)
-		json.NewEncoder(w).Encode(UploadResponse{
-			Success: false,
-			Error:   fmt.Sprintf("File too large. Maximum size is %d bytes", maxContentLength),
 		})
 		return
 	}
@@ -175,9 +154,7 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if err != nil {
-			dst.Close()
-			os.Remove(destPath)
-			_ = abortUpload(rec.Slug)
+			discard()
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(UploadResponse{
 				Success: false,
@@ -188,9 +165,7 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 		value, isTag, tagErr := readTagField(p)
 		p.Close()
 		if tagErr != nil {
-			dst.Close()
-			os.Remove(destPath)
-			_ = abortUpload(rec.Slug)
+			discard()
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(UploadResponse{
 				Success: false,
@@ -207,9 +182,7 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	// half-configured file behind.
 	tags, err := parseTagList(rawTags)
 	if err != nil {
-		dst.Close()
-		os.Remove(destPath)
-		_ = abortUpload(rec.Slug)
+		discard()
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(UploadResponse{
 			Success: false,
@@ -255,7 +228,7 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Now that the new upload is live, reclaim the replaced file's blob (best-effort).
 	if replacedRec != nil {
-		if err := os.Remove(filepath.Join(uploadFolder, replacedRec.StorageKey)); err != nil && !os.IsNotExist(err) {
+		if err := storage.Delete(context.WithoutCancel(r.Context()), replacedRec.StorageKey); err != nil {
 			log.Printf("Failed to remove replaced file %s: %v", replacedRec.StorageKey, err)
 		}
 	}

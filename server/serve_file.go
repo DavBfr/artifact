@@ -1,9 +1,10 @@
 package main
 
 import (
+	"errors"
+	"io"
 	"mime"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -35,24 +36,19 @@ func filenameURLHandler(w http.ResponseWriter, r *http.Request) {
 	serveFileRecord(w, r, *rec)
 }
 
-// serveFileRecord streams the physical blob backing rec from uploadFolder, used by the /s/{slug} route.
+// serveFileRecord streams the stored blob backing rec, used by the /s/{slug}
+// route. The file record says which key to read; the blob store holds the bytes.
 func serveFileRecord(w http.ResponseWriter, r *http.Request, rec FileRecord) {
-	filePath := filepath.Join(uploadFolder, rec.StorageKey)
-
-	// Check if file exists
-	stat, err := os.Stat(filePath)
-	if err != nil || stat.IsDir() {
+	blob, info, err := storage.Get(r.Context(), rec.StorageKey)
+	if errors.Is(err, errBlobNotFound) {
 		http.NotFound(w, r)
 		return
 	}
-
-	// Open the file
-	file, err := os.Open(filePath)
 	if err != nil {
 		http.Error(w, "Failed to open file", http.StatusInternalServerError)
 		return
 	}
-	defer file.Close()
+	defer blob.Close()
 
 	// Set security headers
 	w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -70,10 +66,10 @@ func serveFileRecord(w http.ResponseWriter, r *http.Request, rec FileRecord) {
 	// If unknown, read up to 512 bytes to sniff the content type
 	if contentType == "" {
 		var buf [512]byte
-		n, _ := file.Read(buf[:])
+		n, _ := blob.Read(buf[:])
 		contentType = http.DetectContentType(buf[:n])
 		// Reset read pointer so ServeContent can read from start
-		_, _ = file.Seek(0, 0)
+		_, _ = blob.Seek(0, io.SeekStart)
 	}
 
 	// Check if content type is dangerous and serve as binary instead
@@ -86,13 +82,13 @@ func serveFileRecord(w http.ResponseWriter, r *http.Request, rec FileRecord) {
 	}
 
 	// Set Content-Length header
-	w.Header().Set("Content-Length", strconv.FormatInt(stat.Size(), 10))
+	w.Header().Set("Content-Length", strconv.FormatInt(info.Size, 10))
 
 	// Set Content-Disposition to attachment to prompt download
 	w.Header().Set("Content-Disposition", "attachment; filename=\""+rec.DisplayName+"\"")
 
 	// Serve the file with proper support for ranges and conditional requests
-	http.ServeContent(w, r, rec.DisplayName, stat.ModTime(), file)
+	http.ServeContent(w, r, rec.DisplayName, info.ModTime, blob)
 }
 
 // isDangerousContentType checks if a content type could be harmful if executed in a browser

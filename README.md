@@ -28,6 +28,7 @@ Press `alt` to reveal the login button.
 - **File Tags**: Attach docker-style `name:suffix` tags (`cat:latest`, `pets/cat:6.0`) at upload or later; every tag gets a stable `/t/{tag}` link that always resolves to the file it currently points at. The UI shows a file's tags inline (click one to copy its link) and keeps full tag management, along with every other detail, in the file properties dialog
 - **Search & Sort**: Paginated file listing with server-side search and sorting (name, date, size)
 - **Chunked Uploads**: Efficient handling of large files
+- **Pluggable Storage**: Keep uploads on local disk (the default) or in an S3 bucket, including S3-compatible stores like MinIO
 - **Health Checks**: Built-in health endpoint for monitoring
 - **Multi-architecture**: Supports both AMD64 and ARM64 platforms
 
@@ -41,29 +42,80 @@ Press `alt` to reveal the login button.
 
 ### Environment Variables
 
-| Variable                 | Description                                                                       | Default                               |
-| ------------------------ | --------------------------------------------------------------------------------- | ------------------------------------- |
-| `ART_API_TOKEN`          | Authentication token for API access (required for uploads/deletes)                | None                                  |
-| `ART_SESSION_SECRET`     | Signing key for session tokens. Enables token auth on its own (min. 32 chars)     | None                                  |
-| `ART_SESSION_TTL`        | Lifetime of a session token minted by an OIDC login (e.g. `12h`, `30d`)           | `12h`                                 |
-| `ART_OIDC_ISSUER`        | OIDC issuer URL; set with the client id to enable provider login                  | None                                  |
-| `ART_OIDC_CLIENT_ID`     | OIDC client id registered with the provider                                       | None                                  |
-| `ART_OIDC_CLIENT_SECRET` | OIDC client secret; omit for a PKCE-only client                                   | None                                  |
-| `ART_OIDC_SCOPES`        | Space-separated OIDC scopes                                                       | `openid profile email`                |
-| `ART_OIDC_REDIRECT_URL`  | Redirect URI sent to the provider; must match its registration                    | `<scheme>://<host>/api/auth/callback` |
-| `ART_PORT`               | Port to listen on                                                                 | `8080`                                |
-| `ART_UPLOAD_FOLDER`      | Directory to store uploaded files and the sqlite file-record database             | `/var/uploads`                        |
-| `ART_STATIC_FOLDER`      | Directory for static web files                                                    | `/app/static`                         |
-| `ART_MAX_FILE_SIZE`      | Maximum file size (e.g., "100M", "1G")                                            | `100M`                                |
-| `ART_WEB_PORTAL`         | Serve the web interface. `false` disables it entirely (404s)                      | `true`                                |
-| `ART_NO_LISTING`         | `true` requires a valid API token to call `GET /api/files` and `GET /api/stats`   | `false`                               |
-| `ART_APPEND_ONLY`        | `true` keeps every upload as a separate file (no replacing) and disables deletion | `false`                               |
-| `ART_MAX_LIST_LIMIT`     | Hard cap on the number of files returned per `GET /api/files` request             | `500`                                 |
-| `ART_NO_FILENAME_URL`    | `true` disables `GET /f/{filename}` entirely (404s)                               | `false`                               |
+| Variable                 | Description                                                                                                     | Default                               |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `ART_API_TOKEN`          | Authentication token for API access (required for uploads/deletes)                                              | None                                  |
+| `ART_SESSION_SECRET`     | Signing key for session tokens. Enables token auth on its own (min. 32 chars)                                   | None                                  |
+| `ART_SESSION_TTL`        | Lifetime of a session token minted by an OIDC login (e.g. `12h`, `30d`)                                         | `12h`                                 |
+| `ART_OIDC_ISSUER`        | OIDC issuer URL; set with the client id to enable provider login                                                | None                                  |
+| `ART_OIDC_CLIENT_ID`     | OIDC client id registered with the provider                                                                     | None                                  |
+| `ART_OIDC_CLIENT_SECRET` | OIDC client secret; omit for a PKCE-only client                                                                 | None                                  |
+| `ART_OIDC_SCOPES`        | Space-separated OIDC scopes                                                                                     | `openid profile email`                |
+| `ART_OIDC_REDIRECT_URL`  | Redirect URI sent to the provider; must match its registration                                                  | `<scheme>://<host>/api/auth/callback` |
+| `ART_PORT`               | Port to listen on                                                                                               | `8080`                                |
+| `ART_UPLOAD_FOLDER`      | Data directory: holds the sqlite file-record database, plus the uploaded files themselves when `ART_STORAGE=fs` | `/var/uploads`                        |
+| `ART_STORAGE`            | Where uploaded files live: `fs` (local disk) or `s3`                                                            | `fs`                                  |
+| `ART_S3_BUCKET`          | Bucket for uploaded files; required when `ART_STORAGE=s3`                                                       | None                                  |
+| `ART_S3_PREFIX`          | Key prefix inside the bucket (e.g. `artifacts`)                                                                 | none (bucket root)                    |
+| `ART_S3_REGION`          | Region for the endpoint; defaults to the SDK's own resolution                                                   | None                                  |
+| `ART_S3_ENDPOINT`        | Custom endpoint for S3-compatible stores (MinIO, Ceph, R2)                                                      | None (AWS)                            |
+| `ART_S3_PATH_STYLE`      | Bucket-in-path addressing, needed by most S3-compatible stores                                                  | `true` when `ART_S3_ENDPOINT` is set  |
+| `ART_STATIC_FOLDER`      | Directory for static web files                                                                                  | `/app/static`                         |
+| `ART_MAX_FILE_SIZE`      | Maximum file size (e.g., "100M", "1G")                                                                          | `100M`                                |
+| `ART_WEB_PORTAL`         | Serve the web interface. `false` disables it entirely (404s)                                                    | `true`                                |
+| `ART_NO_LISTING`         | `true` requires a valid API token to call `GET /api/files` and `GET /api/stats`                                 | `false`                               |
+| `ART_APPEND_ONLY`        | `true` keeps every upload as a separate file (no replacing) and disables deletion                               | `false`                               |
+| `ART_MAX_LIST_LIMIT`     | Hard cap on the number of files returned per `GET /api/files` request                                           | `500`                                 |
+| `ART_NO_FILENAME_URL`    | `true` disables `GET /f/{filename}` entirely (404s)                                                             | `false`                               |
 
 ### Volume Mounts
 
-- `/var/uploads` - Persistent storage for uploaded files (also holds the `artifact.db` sqlite file-record database)
+- `/var/uploads` - Holds the `artifact.db` sqlite file-record database, and with `ART_STORAGE=fs`
+  (the default) the uploaded files too. With S3 storage nothing else is needed locally, so the
+  directory only needs enough space for the database.
+
+## Storage Backends
+
+Uploaded files are kept either on local disk or in an S3 bucket.
+
+### Local disk (default)
+
+`ART_STORAGE=fs` stores each upload under `ART_UPLOAD_FOLDER` in a slug-sharded layout
+(`ab/cdefgh...`), decoupled from its display name. Nothing changes for existing deployments.
+
+### S3 (`ART_STORAGE=s3`)
+
+```bash
+ART_STORAGE=s3
+ART_S3_BUCKET=my-artifacts          # object keys are <prefix>/<slug-sharded key>
+ART_S3_PREFIX=artifacts             # optional
+ART_S3_REGION=eu-west-1             # optional; the SDK resolves it otherwise
+ART_S3_ENDPOINT=https://s3.example.com   # optional, for non-AWS stores
+AWS_ACCESS_KEY_ID=...               # or any other credential source below
+AWS_SECRET_ACCESS_KEY=...
+```
+
+- **Credentials** come from the standard AWS chain - environment, shared config, or a
+  container/instance role - so nothing secret has to live in the app's own configuration.
+- **MinIO and other S3-compatible stores** work through `ART_S3_ENDPOINT`, which also switches on
+  path-style addressing (bucket in the path) by default. Override with `ART_S3_PATH_STYLE=false`
+  only if your endpoint needs virtual-host addressing.
+- **Nothing is staged on local disk**: uploads stream straight to the bucket through the SDK's
+  transfer manager, in buffered parts, and the size cap is still enforced while reading. Downloads
+  read ranges straight from the object, so byte ranges and resumable transfers keep working.
+- **The database always stays local.** SQLite needs a local file, so `ART_UPLOAD_FOLDER` is still
+  required with S3 - it just holds `artifact.db` instead of the uploads. That also means the record
+  database is still a single-writer store: S3 makes the *files* shareable between instances, not the
+  metadata.
+- **Migrating an existing deployment** is a straight copy, because an object key is the
+  `storage_key` the database already stores:
+
+  ```bash
+  aws s3 sync /var/uploads s3://my-artifacts/artifacts/ --exclude 'artifact.db*'
+  ```
+
+  Uploaded files whose records are marked deleted can be left behind or swept separately; only rows
+  the database still lists as live are served.
 
 ## Authentication
 
@@ -377,8 +429,8 @@ The `{slug}` is the id from the file's short link (`url`), not its display name.
 - **Frontend**: Flutter/Jaspr for server-side rendered web interface
 - **File Records**: SQLite (`modernc.org/sqlite`, pure Go, no CGO) tracks each upload's display name, short link slug, and physical storage path; deletions are soft (the row is kept so its slug can never be reused)
 - **Tags**: A SQLite `tags` table keyed on `(name, suffix)` with a foreign key to `files(slug)` (`ON DELETE CASCADE`) maps each tag to one file; attaching a tag that already exists moves it instead of duplicating it
-- **Storage**: Uploaded bytes are stored under `/var/uploads` in a slug-sharded layout (e.g. `ab/cdefgh...`), decoupled from the original filename
-- **Size**: Minimal scratch-based image (~20-30MB compressed)
+- **Storage**: Behind a storage interface with two backends. `fs` keeps uploaded bytes under `/var/uploads` in a slug-sharded layout (e.g. `ab/cdefgh...`); `s3` streams them to an object bucket under the same key shape, so several instances can serve one set of files. Either way the key is decoupled from the original filename
+- **Size**: Minimal scratch-based image (~17MB, ~20MB with S3 support)
 
 ## Resource Usage
 
