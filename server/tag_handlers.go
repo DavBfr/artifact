@@ -70,7 +70,7 @@ func listFileTagsHandler(w http.ResponseWriter, r *http.Request) {
 	slug := mux.Vars(r)["slug"]
 
 	// Only live files can carry tags, so a deleted or still-pending slug is a 404.
-	live, err := liveSlugExists(appDB, slug)
+	live, err := liveSlugExists(db(), slug)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(FileTagsResponse{
@@ -88,7 +88,7 @@ func listFileTagsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tags, err := tagsOfSlug(appDB, slug)
+	tags, err := tagsOfSlug(db(), slug)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(FileTagsResponse{
@@ -141,7 +141,7 @@ func addFileTagsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	live, err := liveSlugExists(appDB, slug)
+	live, err := liveSlugExists(db(), slug)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(FileTagsResponse{
@@ -217,7 +217,7 @@ func removeFileTagHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	list, err := tagsOfSlug(appDB, slug)
+	list, err := tagsOfSlug(db(), slug)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(FileTagsResponse{

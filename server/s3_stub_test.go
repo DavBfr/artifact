@@ -68,7 +68,7 @@ func (s *stubS3) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.objects[path] = body
-		w.Header().Set("ETag", `"stub-etag"`)
+		w.Header().Set("ETag", `"`+contentETag(body)+`"`)
 		w.WriteHeader(http.StatusOK)
 
 	case http.MethodHead:
@@ -78,6 +78,9 @@ func (s *stubS3) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+		// Quoted hex MD5 is what a single-part PUT produces, and the SDK strips
+		// the quotes when it reads it back.
+		w.Header().Set("ETag", `"`+contentETag(data)+`"`)
 		w.Header().Set("Last-Modified", time.Now().UTC().Format(http.TimeFormat))
 		w.WriteHeader(http.StatusOK)
 

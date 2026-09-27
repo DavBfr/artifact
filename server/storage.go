@@ -25,6 +25,11 @@ var (
 type BlobInfo struct {
 	Size    int64
 	ModTime time.Time
+	// ETag is the object store's own version tag for the blob. It is what lets a
+	// reader tell "same object" from "new object" from a HEAD alone, since the
+	// store derives it from the content: equal bytes give an equal tag. Empty
+	// when the backend does not provide one.
+	ETag string
 }
 
 // Storage is the blob store behind every uploaded file. Keys are always a

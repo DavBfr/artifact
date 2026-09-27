@@ -2,10 +2,28 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 )
+
+// durationEnv reads a duration from the environment, falling back when unset. An
+// unparsable value stops the boot rather than being silently ignored: it is
+// usually a typo ("5min" instead of "5m") that would otherwise disable whatever
+// the setting controls without a word.
+func durationEnv(name string, fallback time.Duration) time.Duration {
+	raw := strings.TrimSpace(os.Getenv(name))
+	if raw == "" {
+		return fallback
+	}
+	value, err := parseDuration(raw)
+	if err != nil {
+		log.Fatalf("invalid %s: %v", name, err)
+	}
+	return value
+}
 
 func parseBool(s string, defaultValue bool) bool {
 	if s == "" {

@@ -227,7 +227,7 @@ func tagsForSlugs(slugs []string) (map[string][]string, error) {
 		args = append(args, slug)
 	}
 
-	rows, err := appDB.Query(
+	rows, err := db().Query(
 		"SELECT slug, name, suffix FROM tags WHERE slug IN ("+placeholders+") ORDER BY name ASC, suffix ASC",
 		args...,
 	)
@@ -250,7 +250,7 @@ func tagsForSlugs(slugs []string) (map[string][]string, error) {
 // file. It returns the slug's full tag list after the change, plus the tags
 // that were re-pointed away from a different file (tag -> previous slug).
 func addTagsToSlug(slug string, tags []Tag) ([]string, map[string]string, error) {
-	tx, err := appDB.Begin()
+	tx, err := db().Begin()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -284,7 +284,7 @@ func addTagsToSlug(slug string, tags []Tag) ([]string, map[string]string, error)
 // removeTagFromSlug detaches one tag from slug, reporting whether it was
 // actually attached to that slug.
 func removeTagFromSlug(slug string, tag Tag) (bool, error) {
-	res, err := appDB.Exec(
+	res, err := db().Exec(
 		"DELETE FROM tags WHERE name = ? AND suffix = ? AND slug = ?",
 		tag.Name, tag.Suffix, slug,
 	)
@@ -315,7 +315,7 @@ func applyUploadTags(newSlug string, tags []Tag, replacedSlug string) error {
 		return nil
 	}
 
-	tx, err := appDB.Begin()
+	tx, err := db().Begin()
 	if err != nil {
 		return err
 	}
@@ -340,7 +340,7 @@ func applyUploadTags(newSlug string, tags []Tag, replacedSlug string) error {
 // liveRecordByTag resolves a tag to the live file it points at, or nil if the
 // tag is unknown or its file has been deleted.
 func liveRecordByTag(name, suffix string) (*FileRecord, error) {
-	row := appDB.QueryRow(
+	row := db().QueryRow(
 		"SELECT "+recordColumns+" FROM files WHERE slug = (SELECT slug FROM tags WHERE name = ? AND suffix = ?)"+
 			" AND deleted = 0 AND pending = 0",
 		name, suffix,
@@ -367,7 +367,7 @@ func listAllTags(offset, limit int, search string) ([]TagInfo, error) {
 		args = append(args, pattern, pattern)
 	}
 
-	rows, err := appDB.Query(
+	rows, err := db().Query(
 		`SELECT t.name, t.suffix, t.slug, t.created, f.display_name
 		 FROM tags t JOIN files f ON f.slug = t.slug `+where+
 			` ORDER BY t.name ASC, t.suffix ASC LIMIT ? OFFSET ?`,

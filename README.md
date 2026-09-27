@@ -29,7 +29,8 @@ Press `alt` to reveal the login button.
 - **Search & Sort**: Paginated file listing with server-side search and sorting (name, date, size)
 - **Chunked Uploads**: Efficient handling of large files
 - **Pluggable Storage**: Keep uploads on local disk (the default) or in an S3 bucket, including S3-compatible stores like MinIO
-- **Health Checks**: Built-in health endpoint for monitoring
+- **Health Checks**: Built-in health endpoint for monitoring, including replication lag on read-only replicas
+- **High Availability**: One writer with any number of stateless, read-only replicas that follow the record database from object storage
 - **Multi-architecture**: Supports both AMD64 and ARM64 platforms
 
 ## Use Cases
@@ -67,12 +68,20 @@ Press `alt` to reveal the login button.
 | `ART_APPEND_ONLY`        | `true` keeps every upload as a separate file (no replacing) and disables deletion                               | `false`                               |
 | `ART_MAX_LIST_LIMIT`     | Hard cap on the number of files returned per `GET /api/files` request                                           | `500`                                 |
 | `ART_NO_FILENAME_URL`    | `true` disables `GET /f/{filename}` entirely (404s)                                                             | `false`                               |
+| `ART_READ_ONLY`          | `true` serves only: every mutation answers `403`. See [High Availability](#high-availability)                   | `false`                               |
+| `ART_DB_REPLICA`         | `true` downloads the record database from the bucket and serves it; implies `ART_READ_ONLY`                     | `false`                               |
+| `ART_DB_BACKUP_DELAY`    | Publish the record database to the bucket after this much quiet. `0` disables publishing                        | `0`                                   |
+| `ART_DB_BACKUP_PREFIX`   | Key prefix for the published database inside the bucket                                                         | `_backup`                             |
+| `ART_DB_POLL_INTERVAL`   | How often a replica asks whether a new database has been published                                              | `60s`                                 |
+| `ART_DB_RESTORE`         | What an absent local database means: `auto` restores it, `ignore` starts fresh, unset refuses to start          | unset                                 |
 
 ### Volume Mounts
 
 - `/var/uploads` - Holds the `artifact.db` sqlite file-record database, and with `ART_STORAGE=fs`
   (the default) the uploaded files too. With S3 storage nothing else is needed locally, so the
   directory only needs enough space for the database.
+- A read-only replica (`ART_DB_REPLICA=true`) needs **no volume at all**: the directory is scratch
+  space for the snapshot it downloads, so an `emptyDir` or `/tmp` is enough.
 
 ## Storage Backends
 
@@ -103,10 +112,11 @@ AWS_SECRET_ACCESS_KEY=...
 - **Nothing is staged on local disk**: uploads stream straight to the bucket through the SDK's
   transfer manager, in buffered parts, and the size cap is still enforced while reading. Downloads
   read ranges straight from the object, so byte ranges and resumable transfers keep working.
-- **The database always stays local.** SQLite needs a local file, so `ART_UPLOAD_FOLDER` is still
-  required with S3 - it just holds `artifact.db` instead of the uploads. That also means the record
-  database is still a single-writer store: S3 makes the *files* shareable between instances, not the
-  metadata.
+- **The record database is local to each instance.** SQLite needs a local file, so
+  `ART_UPLOAD_FOLDER` is still required with S3 - it just holds `artifact.db` instead of the
+  uploads. There is exactly **one writer**: S3 makes the *files* shareable between instances,
+  and the *metadata* is shared by replicating the database as a read-only snapshot, which is
+  what [High Availability](#high-availability) describes.
 - **Migrating an existing deployment** is a straight copy, because an object key is the
   `storage_key` the database already stores:
 
@@ -116,6 +126,218 @@ AWS_SECRET_ACCESS_KEY=...
 
   Uploaded files whose records are marked deleted can be left behind or swept separately; only rows
   the database still lists as live are served.
+
+## High Availability
+
+The server runs as **one writer with any number of read-only replicas**. A replica is
+stateless: it has no volume of its own, it downloads the record database from the bucket, and
+it refuses every mutation. Uploads, deletes and tag changes go to the writer; downloads are
+served by whichever instance is closest.
+
+### How it works
+
+The writer *publishes* the database:
+
+- Once the database has been quiet for `ART_DB_BACKUP_DELAY`, and once more on shutdown, it runs
+  `VACUUM INTO` to produce a consistent single-file copy - no write-ahead log, no sidecars - and
+  uploads it to `<ART_DB_BACKUP_PREFIX>/artifact.db`.
+- It publishes only when something actually changed, so an idle server uploads nothing. The delay
+  is measured from when a change is noticed, so it is a *staleness bound*, not a backup schedule:
+  set it to the lag you are willing to serve.
+- The copy carries the schema version in `PRAGMA user_version`, so a reader can tell whether it
+  understands a snapshot before it tries to use it.
+- A snapshot that is empty while the published one holds data is **refused**, because that is what
+  a lost or unmounted volume looks like and publishing it would destroy the last good copy. Empty
+  the database on purpose with `ART_DB_RESTORE=ignore`.
+
+A replica *subscribes* to it:
+
+- At boot it downloads the snapshot and opens it read-only. It never creates a database of its own.
+- Every `ART_DB_POLL_INTERVAL` (jittered, so replicas do not stampede) it asks whether the object
+  changed, and downloads it only when it did.
+- A new snapshot goes to a temporary file, is verified (integrity check, schema version) and is
+  only then renamed into place. **If anything fails, the replica keeps serving the snapshot it
+  already has**, so an unreachable bucket or a truncated download costs freshness, not availability.
+- Because a replica only ever reads, its bucket credentials need `GetObject` and nothing else. It
+  cannot damage the data even if it is compromised.
+
+### Setup
+
+A complete local stack: a demo MinIO for the bucket, one writer, three replicas, and Traefik in
+front. Point `ART_S3_*` at your own bucket and drop `minio`, `minio-init` and their `depends_on`
+to run it for real.
+
+```yaml
+services:
+  # ---------------------------------------------------------------------------
+  # Demo object store. These are MinIO's default credentials - fine for a local
+  # stack, and never for anything reachable.
+  # ---------------------------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports: ["9000:9000", "9001:9001"] # API, console
+    volumes: ["minio:/data"]
+
+  # Creates the bucket once MinIO is up: the server never creates one itself.
+  minio-init:
+    image: minio/mc:latest
+    depends_on: [minio]
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 minioadmin minioadmin; do sleep 1; done;
+      mc mb --ignore-existing local/my-artifacts;
+      "
+
+  # The writer owns the data: it is the only instance with a volume, and the
+  # only one that accepts a mutation.
+  artifact:
+    image: davbfr/artifact:latest
+    depends_on: [minio-init]
+    volumes: ["./uploads:/var/uploads"]
+    environment: &artifact-env
+      ART_API_TOKEN: ${ART_API_TOKEN}
+      ART_STORAGE: s3
+      ART_S3_BUCKET: my-artifacts
+      ART_S3_ENDPOINT: http://minio:9000 # implies path-style addressing
+      ART_S3_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      ART_DB_BACKUP_DELAY: 15s # how far behind the replicas may be
+    labels:
+      traefik.enable: "true"
+
+      # Everything that is not a download goes to the writer: the web UI, and
+      # all of /api/. The API cannot be split by prefix, because /api/tags/{slug}
+      # is a read as a GET and a mutation as a POST.
+      traefik.http.routers.artifact.rule: "PathPrefix(`/`)"
+      traefik.http.routers.artifact.priority: "1"
+      traefik.http.routers.artifact.service: artifact-writer
+      traefik.http.services.artifact-writer.loadbalancer.server.port: "8080"
+
+      # Downloads are the one thing every instance can do identically, so they
+      # are the only routes spread across the replicas: /s/, /f/ and /t/ are
+      # downloads and nothing else, so no mutation can land on a read-only
+      # instance by going through them.
+      traefik.http.routers.artifact-downloads.rule: "PathPrefix(`/s/`) || PathPrefix(`/f/`) || PathPrefix(`/t/`)"
+      traefik.http.routers.artifact-downloads.priority: "100"
+      traefik.http.routers.artifact-downloads.service: artifact-downloads
+      traefik.http.services.artifact-downloads.loadbalancer.server.port: "8080"
+      traefik.http.services.artifact-downloads.loadbalancer.healthcheck.path: "/api/health"
+
+  # Replicas serve downloads. They need no volume at all and no host port: they
+  # are only ever reached through the load balancer.
+  artifact-replica:
+    image: davbfr/artifact:latest
+    depends_on: [minio-init]
+    environment:
+      <<: *artifact-env
+      ART_READ_ONLY: "true"
+      ART_DB_REPLICA: "true"
+      ART_DB_POLL_INTERVAL: 60s
+      ART_WEB_PORTAL: "false"
+      ART_UPLOAD_FOLDER: /tmp/artifact-db # scratch for the downloaded database
+    labels:
+      traefik.enable: "true"
+      # Declaring the same service name is what puts a replica into the download
+      # load-balancer. It gets no routers of its own.
+      traefik.http.services.artifact-downloads.loadbalancer.server.port: "8080"
+    deploy:
+      replicas: 3
+
+  traefik:
+    image: traefik:v3
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+    ports: ["8080:80"]
+    volumes: ["/var/run/docker.sock:/var/run/docker.sock:ro"]
+
+volumes:
+  minio:
+```
+
+The whole thing then lives at `http://localhost:8080`, and MinIO's console at
+`http://localhost:9001`.
+
+Note that one bucket holds both parts: the uploaded files under `ART_S3_PREFIX`, and the record
+database snapshot under `_backup/`. Those keyspaces cannot overlap - storage keys are sharded by
+the first two characters of a slug, and slugs are `[A-Za-z0-9]` only, so a directory starting
+with `_` can never be a shard.
+
+> **Set `ART_WEB_PORTAL=false` on the replicas.** The routing above already sends the UI to the
+> writer, so a visitor never lands on a replica - but turning the portal off means a replica
+> *cannot* serve an interface that would not work, even if it is reached directly. A replica's
+> upload, delete and tag controls would fail with `403`, because nothing there can change data.
+> With the portal off, each replica is a pure API and download origin: no ~17MB JavaScript bundle
+> served per visitor, and no interface that looks functional but is not.
+
+### Routing
+
+Replicas answer mutations with `403`, so a load balancer that round-robins *everything* will fail
+uploads at random. Send the four mutating routes to the writer and spread the reads across every
+instance:
+
+| Route                           | Send to      |
+| ------------------------------- | ------------ |
+| `POST /api/upload`              | writer only  |
+| `DELETE /api/delete/{slug}`     | writer only  |
+| `POST /api/tags/{slug}`         | writer only  |
+| `DELETE /api/tags/{slug}/{tag}` | writer only  |
+| /s/ /f/ /t/                     | any instance |
+| everything else                 | writer only  |
+
+In the compose above this is two Traefik routers: a catch-all `PathPrefix(`/`)` pointing at the
+writer, and a higher-priority `PathPrefix(`/s/`) || PathPrefix(`/f/`) || PathPrefix(`/t/`)`
+pointing at a service every instance joins. Traefik would prefer the longer rule on its own, but
+the explicit `priority` makes that independent of how the rules are written.
+
+The split is by *path* because that is the only thing a router can see. `/s/`, `/f/` and `/t/` are
+downloads and nothing else, whereas `/api/tags/{slug}` is a read as a `GET` and a mutation as a
+`POST`, so every `/api/` route stays on the writer.
+
+### What to expect
+
+- **Replication lag** is up to `ART_DB_BACKUP_DELAY + ART_DB_POLL_INTERVAL`. A newly uploaded file, or
+  a deletion, may take that long to appear on a replica.
+- **A lagging delete can 404 briefly**: a replica may still list a file whose blob the writer has
+  already removed. Shorten the delay to narrow the window.
+- **Replicas need `ART_STORAGE=s3`.** A replica has no local blobs, so with `fs` storage it would
+  list files it can never serve. This is checked at startup rather than left to fail per request.
+- **One writer.** Nothing here arbitrates between two writers sharing a database; the snapshot
+  mechanism replicates the metadata, it does not merge it.
+
+### Restoring the database
+
+`restore-db` writes the published snapshot over the local database:
+
+```bash
+# In a running container, replacing the database it has
+docker exec artifact-server /app/upload_server restore-db -force
+
+# Before starting, into a fresh data directory (the bucket config has to be passed)
+docker run --rm -v ./uploads:/var/uploads \
+  -e ART_S3_BUCKET=my-artifacts davbfr/artifact:latest restore-db
+```
+
+If the database is missing while a snapshot exists, the server **refuses to start** rather than
+quietly creating an empty one - a fresh deployment and a lost volume look identical, and only the
+snapshot store can tell them apart:
+
+```text
+no database at /var/uploads/artifact.db, but a snapshot is published at _backup/artifact.db (8.4 MB, 2026-09-27T14:15:30Z)
+
+  Restore it:   upload_server restore-db
+  Start fresh:  ART_DB_RESTORE=ignore
+```
+
+`ART_DB_RESTORE=auto` restores automatically instead, for a deployment that would rather come back
+by itself. Setting the backup delay to a non-zero value also gives a filesystem-backed instance an
+offsite copy of its metadata in the bucket.
 
 ## Authentication
 
@@ -428,6 +650,7 @@ The `{slug}` is the id from the file's short link (`url`), not its display name.
 - **Backend**: Go with Gorilla Mux router
 - **Frontend**: Flutter/Jaspr for server-side rendered web interface
 - **File Records**: SQLite (`modernc.org/sqlite`, pure Go, no CGO) tracks each upload's display name, short link slug, and physical storage path; deletions are soft (the row is kept so its slug can never be reused)
+- **Database Snapshots**: The record database is published to the object store as a `VACUUM INTO` copy - one self-contained file, no write-ahead log - and each replica verifies and swaps it in atomically, which is what makes read-only replicas stateless
 - **Tags**: A SQLite `tags` table keyed on `(name, suffix)` with a foreign key to `files(slug)` (`ON DELETE CASCADE`) maps each tag to one file; attaching a tag that already exists moves it instead of duplicating it
 - **Storage**: Behind a storage interface with two backends. `fs` keeps uploaded bytes under `/var/uploads` in a slug-sharded layout (e.g. `ab/cdefgh...`); `s3` streams them to an object bucket under the same key shape, so several instances can serve one set of files. Either way the key is decoupled from the original filename
 - **Size**: Minimal scratch-based image (~17MB, ~20MB with S3 support)
@@ -445,7 +668,27 @@ The server includes a health check endpoint at `/api/health` that returns:
 ```json
 {
   "status": "healthy",
-  "service": "upload-server"
+  "service": "upload-server",
+  "role": "writer",
+  "database": { "schema_version": 1 }
+}
+```
+
+A read-only replica reports its role and how far behind the writer it is, so replication lag can be
+alerted on rather than guessed at. A replica is healthy at any age - the age is the lag:
+
+```json
+{
+  "status": "healthy",
+  "service": "upload-server",
+  "role": "read-only",
+  "read_only": true,
+  "database": {
+    "schema_version": 1,
+    "snapshot": "artifact.db",
+    "generation": 42,
+    "snapshot_age_seconds": 12.5
+  }
 }
 ```
 

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
@@ -43,10 +44,10 @@ type s3Storage struct {
 	prefix   string // normalised to "" or "…/"
 }
 
-// newS3Storage builds the S3 backend from the ART_S3_* configuration.
-// Credentials come from the AWS default chain (environment, shared config,
-// container or instance role), so long-lived keys never have to be baked in.
-func newS3Storage(ctx context.Context) (Storage, error) {
+// newS3Client builds an S3 client from the ART_S3_* configuration. Credentials
+// come from the AWS default chain (environment, shared config, container or
+// instance role), so long-lived keys never have to be baked in.
+func newS3Client(ctx context.Context) (*s3.Client, error) {
 	if s3Bucket == "" {
 		return nil, errors.New("ART_S3_BUCKET is required when ART_STORAGE=s3")
 	}
@@ -66,14 +67,47 @@ func newS3Storage(ctx context.Context) (Storage, error) {
 		return nil, fmt.Errorf("loading aws configuration: %w", err)
 	}
 
-	client := s3.NewFromConfig(cfg, s3ClientOptions(s3Endpoint, s3PathStyle))
+	return s3.NewFromConfig(cfg, s3ClientOptions(s3Endpoint, s3PathStyle)), nil
+}
 
+// s3ClientMemo makes the two consumers of S3 - blobs and database snapshots -
+// share one client, and so one credential resolution rather than two.
+var s3ClientMemo struct {
+	once   sync.Once
+	client *s3.Client
+	err    error
+}
+
+// sharedS3Client returns the process-wide S3 client, building it on first use.
+// Every caller runs during startup with the same bounded context, so the first
+// one to arrive deciding the credential deadline is not a distinction that
+// matters here.
+func sharedS3Client(ctx context.Context) (*s3.Client, error) {
+	s3ClientMemo.once.Do(func() {
+		s3ClientMemo.client, s3ClientMemo.err = newS3Client(ctx)
+	})
+	return s3ClientMemo.client, s3ClientMemo.err
+}
+
+// newS3StorageWithClient points a store at the configured bucket under prefix,
+// which is what lets database snapshots live in the same bucket as the blobs
+// without sharing their keyspace.
+func newS3StorageWithClient(client *s3.Client, prefix string) *s3Storage {
 	return &s3Storage{
 		client:   client,
 		uploader: transfermanager.New(client),
 		bucket:   s3Bucket,
-		prefix:   normaliseS3Prefix(s3Prefix),
-	}, nil
+		prefix:   normaliseS3Prefix(prefix),
+	}
+}
+
+// newS3Storage builds the blob store used when ART_STORAGE=s3.
+func newS3Storage(ctx context.Context) (Storage, error) {
+	client, err := sharedS3Client(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return newS3StorageWithClient(client, s3Prefix), nil
 }
 
 // s3ClientOptions points the client at the configured endpoint. It is shared
@@ -143,7 +177,7 @@ func (s *s3Storage) Get(ctx context.Context, key string) (io.ReadSeekCloser, Blo
 		return nil, BlobInfo{}, err
 	}
 
-	info := BlobInfo{Size: aws.ToInt64(head.ContentLength)}
+	info := BlobInfo{Size: aws.ToInt64(head.ContentLength), ETag: aws.ToString(head.ETag)}
 	if head.LastModified != nil {
 		info.ModTime = *head.LastModified
 	}

@@ -1,9 +1,9 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
 	"net/http"
+	"time"
 )
 
 const (
@@ -22,8 +22,17 @@ var (
 	noListing        bool
 	appendOnly       bool
 	noFilenameURL    bool
-	appDB            *sql.DB
 	maxListLimit     int
+
+	// Read-only replicas. A replica serves downloads and the API from a copy of
+	// the writer's database that it downloads from the snapshot store, and
+	// refuses every mutation.
+	readOnly       bool
+	dbReplica      bool
+	dbRestoreMode  string
+	dbBackupDelay  time.Duration
+	dbBackupPrefix string
+	dbPollInterval time.Duration
 
 	// Blob storage: the local filesystem by default, or an S3 bucket so that
 	// several instances can serve the same files without replicating them.

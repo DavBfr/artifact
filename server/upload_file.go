@@ -216,7 +216,7 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	applied, err := tagsOfSlug(appDB, finalRec.Slug)
+	applied, err := tagsOfSlug(db(), finalRec.Slug)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(UploadResponse{

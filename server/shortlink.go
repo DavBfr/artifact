@@ -37,9 +37,11 @@ type FileRecord struct {
 }
 
 // initSchema creates the file and tag tables (and their indexes) if they don't
-// exist yet.
-func initSchema() error {
-	if _, err := appDB.Exec(`
+// exist yet. It takes the handle explicitly because a read-only replica opens a
+// downloaded snapshot before the live handle is in place; every statement is a
+// no-op on a snapshot that already has the schema, so it is safe there too.
+func initSchema(handle *sql.DB) error {
+	if _, err := handle.Exec(`
 		CREATE TABLE IF NOT EXISTS files (
 			slug         TEXT PRIMARY KEY,
 			display_name TEXT NOT NULL,
@@ -55,7 +57,7 @@ func initSchema() error {
 	`); err != nil {
 		return err
 	}
-	_, err := appDB.Exec(tagsDDL)
+	_, err := handle.Exec(tagsDDL)
 	return err
 }
 
@@ -145,7 +147,7 @@ func insertUniqueRecord(db execer, rec FileRecord) (FileRecord, error) {
 
 // getFileRecord returns the record for slug, regardless of its Deleted/Pending state.
 func getFileRecord(slug string) (FileRecord, error) {
-	row := appDB.QueryRow("SELECT "+recordColumns+" FROM files WHERE slug = ?", slug)
+	row := db().QueryRow("SELECT "+recordColumns+" FROM files WHERE slug = ?", slug)
 	rec, err := scanRecord(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return FileRecord{}, errRecordNotFound
@@ -175,7 +177,7 @@ func findLiveRecordByName(db execer, displayName string) (*FileRecord, error) {
 // Under ART_APPEND_ONLY, several live records can share a display name; this
 // picks the newest one.
 func latestLiveRecordByName(displayName string) (*FileRecord, error) {
-	row := appDB.QueryRow(
+	row := db().QueryRow(
 		"SELECT "+recordColumns+" FROM files WHERE display_name = ? AND deleted = 0 AND pending = 0 ORDER BY modified DESC LIMIT 1",
 		displayName,
 	)
@@ -222,7 +224,7 @@ func escapeLikePattern(s string) string {
 // directly (COUNT/SUM/MAX) rather than in Go.
 func fileStats() (totalFiles int, totalSize int64, lastUpload string, err error) {
 	var lastUploadNull sql.NullString
-	err = appDB.QueryRow(
+	err = db().QueryRow(
 		"SELECT COUNT(*), COALESCE(SUM(size), 0), MAX(modified) FROM files WHERE deleted = 0 AND pending = 0",
 	).Scan(&totalFiles, &totalSize, &lastUploadNull)
 	if err != nil {
@@ -244,7 +246,7 @@ func listLiveRecords(offset, limit int, search, order string) ([]FileRecord, err
 		args = append(args, "%"+escapeLikePattern(search)+"%")
 	}
 
-	rows, err := appDB.Query(
+	rows, err := db().Query(
 		"SELECT "+recordColumns+" FROM files "+where+" ORDER BY "+orderByClause(order)+" LIMIT ? OFFSET ?",
 		append(append([]any{}, args...), limit, offset)...,
 	)
@@ -270,7 +272,7 @@ func listLiveRecords(offset, limit int, search, order string) ([]FileRecord, err
 // upload succeeds). Soft-deleted rows are kept forever so their slug is
 // never reused.
 func reserveUpload(displayName, mimeType string) (rec FileRecord, replaced *FileRecord, err error) {
-	tx, err := appDB.Begin()
+	tx, err := db().Begin()
 	if err != nil {
 		return FileRecord{}, nil, err
 	}
@@ -302,7 +304,7 @@ func reserveUpload(displayName, mimeType string) (rec FileRecord, replaced *File
 // finalizeUpload patches the record with its final size/modified time and
 // clears Pending once the file has been fully written to disk.
 func finalizeUpload(slug string, size int64, modified string) (FileRecord, error) {
-	if _, err := appDB.Exec("UPDATE files SET size = ?, modified = ?, pending = 0 WHERE slug = ?", size, modified, slug); err != nil {
+	if _, err := db().Exec("UPDATE files SET size = ?, modified = ?, pending = 0 WHERE slug = ?", size, modified, slug); err != nil {
 		return FileRecord{}, err
 	}
 	return getFileRecord(slug)
@@ -311,17 +313,17 @@ func finalizeUpload(slug string, size int64, modified string) (FileRecord, error
 // abortUpload marks a reserved record as deleted after a failed write so its
 // slug is never reused, without ever leaving it visible as a live file.
 func abortUpload(slug string) error {
-	if _, err := appDB.Exec("UPDATE files SET deleted = 1, pending = 0 WHERE slug = ?", slug); err != nil {
+	if _, err := db().Exec("UPDATE files SET deleted = 1, pending = 0 WHERE slug = ?", slug); err != nil {
 		return err
 	}
 	// A tag must never resolve to a file whose upload died half-way.
-	return deleteTagsForSlug(appDB, slug)
+	return deleteTagsForSlug(db(), slug)
 }
 
 // softDeleteBySlug marks the live record for slug as deleted, keeping the row
 // (and its slug) around forever.
 func softDeleteBySlug(slug string) (*FileRecord, error) {
-	tx, err := appDB.Begin()
+	tx, err := db().Begin()
 	if err != nil {
 		return nil, err
 	}

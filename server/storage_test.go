@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -133,8 +135,17 @@ func TestFsStorageCatchesOverflowReportedWithEOF(t *testing.T) {
 type fakeS3 struct {
 	objects   map[string][]byte
 	gets      int
+	puts      int
 	lastRange string
 	modTime   time.Time
+}
+
+// contentETag stands in for the tag a real store derives from the object, which
+// is what the snapshot replica compares to decide whether it has to download.
+// Equal bytes have to give an equal tag, so it is a hash of the content.
+func contentETag(data []byte) string {
+	sum := md5.Sum(data)
+	return hex.EncodeToString(sum[:])
 }
 
 func newFakeS3() *fakeS3 {
@@ -152,6 +163,7 @@ func (f *fakeS3) HeadObject(ctx context.Context, in *s3.HeadObjectInput, opt ...
 	return &s3.HeadObjectOutput{
 		ContentLength: aws.Int64(int64(len(data))),
 		LastModified:  aws.Time(f.modTime),
+		ETag:          aws.String(contentETag(data)),
 	}, nil
 }
 
@@ -195,6 +207,7 @@ func (f *fakeUploader) UploadObject(ctx context.Context, in *transfermanager.Upl
 	// The in-process fake is only ever driven from the test goroutine, so it
 	// needs no locking (unlike the HTTP stub).
 	f.store.objects[aws.ToString(in.Key)] = data
+	f.store.puts++
 
 	return &transfermanager.UploadObjectOutput{}, nil
 }
@@ -208,6 +221,19 @@ func newFakeBackedStorage() (*s3Storage, *fakeS3) {
 		uploader: &fakeUploader{store: fake},
 		bucket:   "bucket",
 		prefix:   "artifacts/",
+	}, fake
+}
+
+// newFakeSnapshotStore returns the snapshot store a real deployment would build,
+// backed by the in-memory fake: same bucket, prefix chosen so it can never
+// collide with a slug-sharded storage key.
+func newFakeSnapshotStore() (*s3Storage, *fakeS3) {
+	fake := newFakeS3()
+	return &s3Storage{
+		client:   fake,
+		uploader: &fakeUploader{store: fake},
+		bucket:   "bucket",
+		prefix:   normaliseS3Prefix(defaultDBBackupPrefix),
 	}, fake
 }
 
