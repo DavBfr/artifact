@@ -216,7 +216,17 @@ func oidcCallbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionToken, err := mintSessionToken("oidc", oidcIdentityFromIDToken(idToken), sessionTTL, time.Now())
+	// Roles come from the provider's groups, resolved here so the token carries a
+	// plain permission set and verifying a request never has to consult the role
+	// configuration again.
+	identity, groups := oidcClaimsFromIDToken(idToken)
+	perms := resolvePermissions(groups)
+	if len(perms) == 0 {
+		log.Printf("OIDC login for %q granted no permissions (groups: %s); check ART_OIDC_GROUPS",
+			identity.Subject, listPermissions(groups))
+	}
+
+	sessionToken, err := mintSessionToken("oidc", identity, perms, sessionTTL, time.Now())
 	if err != nil {
 		log.Printf("OIDC session token minting failed: %v", err)
 		http.Error(w, "Failed to complete login", http.StatusInternalServerError)
@@ -228,26 +238,63 @@ func oidcCallbackHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/#token="+sessionToken, http.StatusFound)
 }
 
-// oidcIdentityFromIDToken pulls the display metadata out of an id_token. Only
-// the subject is authoritative; the rest exists so the UI can show who is
-// signed in, and must never feed an authorization decision.
-func oidcIdentityFromIDToken(idToken *oidc.IDToken) sessionIdentity {
-	var claims struct {
-		Email             string `json:"email"`
-		Name              string `json:"name"`
-		PreferredUsername string `json:"preferred_username"`
-	}
-	// A claims decode failure only costs the display name, not the login.
+// oidcClaimsFromIDToken pulls the display metadata and the group membership out
+// of an id_token. Only the subject is authoritative; the rest exists so the UI
+// can show who is signed in. The groups do drive an authorization decision - but
+// they are read from the token the provider signed, never from anything the
+// client sent, and a token with no groups simply grants no roles.
+//
+// The claims are decoded into a map rather than a struct because the group claim
+// is configurable, and every field is read best-effort: a claim that is missing
+// or the wrong shape costs that field alone, so an unusual provider cannot fail
+// a login outright.
+func oidcClaimsFromIDToken(idToken *oidc.IDToken) (sessionIdentity, []string) {
+	var claims map[string]json.RawMessage
 	if err := idToken.Claims(&claims); err != nil {
 		log.Printf("OIDC id_token claims could not be decoded: %v", err)
+		return sessionIdentity{Subject: idToken.Subject}, nil
 	}
 
 	return sessionIdentity{
 		Subject:           idToken.Subject,
-		Email:             claims.Email,
-		Name:              claims.Name,
-		PreferredUsername: claims.PreferredUsername,
+		Email:             claimString(claims, "email"),
+		Name:              claimString(claims, "name"),
+		PreferredUsername: claimString(claims, "preferred_username"),
+	}, claimGroups(claims, oidcGroupsClaim)
+}
+
+// claimString decodes a string claim, treating a missing or non-string value as
+// absent.
+func claimString(claims map[string]json.RawMessage, name string) string {
+	var value string
+	_ = json.Unmarshal(claims[name], &value)
+	return value
+}
+
+// claimGroups decodes a group claim. Providers disagree about its shape - most
+// send a JSON array, some a single space- or comma-separated string - so both
+// are accepted. A claim that is present but undecodable is logged, because the
+// user is about to be granted nothing and "no groups" would look intentional.
+func claimGroups(claims map[string]json.RawMessage, name string) []string {
+	raw, ok := claims[name]
+	if !ok || len(raw) == 0 {
+		return nil
 	}
+
+	var list []string
+	if err := json.Unmarshal(raw, &list); err == nil {
+		return list
+	}
+
+	var joined string
+	if err := json.Unmarshal(raw, &joined); err == nil {
+		return strings.FieldsFunc(joined, func(r rune) bool {
+			return r == ' ' || r == ','
+		})
+	}
+
+	log.Printf("OIDC claim %q could not be decoded as a list of groups; treating it as empty", name)
+	return nil
 }
 
 // oidcFailRedirect sends the browser back to the app with a reason in the URL

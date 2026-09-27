@@ -246,6 +246,23 @@ func tagsForSlugs(slugs []string) (map[string][]string, error) {
 	return tagsBySlug, rows.Err()
 }
 
+// tagsOwnedByAnotherFile returns the slugs, other than exclude, that currently
+// own any of tags. An empty result means none of them would be taken off another
+// file, so the request does not need the permission to remove one.
+func tagsOwnedByAnotherFile(tags []Tag, exclude string) ([]string, error) {
+	var owners []string
+	for _, tag := range tags {
+		owner, err := tagOwner(db(), tag)
+		if err != nil {
+			return nil, err
+		}
+		if owner != "" && owner != exclude {
+			owners = append(owners, owner)
+		}
+	}
+	return owners, nil
+}
+
 // addTagsToSlug attaches tags to a live slug, moving each tag off any other
 // file. It returns the slug's full tag list after the change, plus the tags
 // that were re-pointed away from a different file (tag -> previous slug).
@@ -305,11 +322,14 @@ func deleteTagsForSlug(db execer, slug string) error {
 	return err
 }
 
-// applyUploadTags attaches tags to a freshly uploaded file. Every tag named in
-// the request is re-pointed to newSlug; the replaced file's remaining tags are
-// then dropped, since that file has just been superseded. Order matters: the
-// requested tags must move off replacedSlug before the sweep, otherwise one
-// would be deleted right after being moved.
+// applyUploadTags finishes an upload: every tag named in the request is
+// re-pointed to newSlug, and the replaced file is retired - its tags are dropped
+// (except any re-listed just above) and its record is soft-deleted. Both happen
+// in one transaction, so a superseded file is never left live with its tags
+// moved away, and it is retired only now that the upload has succeeded.
+//
+// Order matters: the requested tags must move off replacedSlug before the sweep,
+// otherwise one would be deleted right after being moved.
 func applyUploadTags(newSlug string, tags []Tag, replacedSlug string) error {
 	if len(tags) == 0 && replacedSlug == "" {
 		return nil
@@ -330,6 +350,9 @@ func applyUploadTags(newSlug string, tags []Tag, replacedSlug string) error {
 
 	if replacedSlug != "" {
 		if err := deleteTagsForSlug(tx, replacedSlug); err != nil {
+			return err
+		}
+		if _, err := tx.Exec("UPDATE files SET deleted = 1 WHERE slug = ?", replacedSlug); err != nil {
 			return err
 		}
 	}

@@ -172,6 +172,14 @@ func findLiveRecordByName(db execer, displayName string) (*FileRecord, error) {
 	return &rec, nil
 }
 
+// liveRecordByName returns the live record with the given display name, or nil
+// when there is none. It is what the upload handler authorizes against before
+// reserving anything: superseding a live file is a deletion, so it is checked
+// before reserveUpload runs rather than after the body has been read.
+func liveRecordByName(displayName string) (*FileRecord, error) {
+	return findLiveRecordByName(db(), displayName)
+}
+
 // latestLiveRecordByName returns the most recently uploaded live record with
 // the given display name - the one that /f/{filename} resolves to.
 // Under ART_APPEND_ONLY, several live records can share a display name; this
@@ -266,11 +274,15 @@ func listLiveRecords(offset, limit int, search, order string) ([]FileRecord, err
 	return records, rows.Err()
 }
 
-// reserveUpload creates a new pending record for displayName and, unless
-// appendOnly is set, soft-deletes the previous live record with the same
-// name (returned so the caller can reclaim its physical blob once the new
-// upload succeeds). Soft-deleted rows are kept forever so their slug is
-// never reused.
+// reserveUpload creates a new pending record for displayName and returns the
+// live record it is about to supersede, if any (unless appendOnly is set).
+//
+// The superseded record is deliberately left alone here: retiring it is the
+// caller's job, and only once the upload has actually succeeded. Soft-deleting
+// it up front would mean an upload that failed later - too large, an invalid
+// tag, a storage error - took the file it was replacing down with it.
+//
+// Soft-deleted rows are kept forever so their slug is never reused.
 func reserveUpload(displayName, mimeType string) (rec FileRecord, replaced *FileRecord, err error) {
 	tx, err := db().Begin()
 	if err != nil {
@@ -282,11 +294,6 @@ func reserveUpload(displayName, mimeType string) (rec FileRecord, replaced *File
 		replaced, err = findLiveRecordByName(tx, displayName)
 		if err != nil {
 			return FileRecord{}, nil, err
-		}
-		if replaced != nil {
-			if _, err := tx.Exec("UPDATE files SET deleted = 1 WHERE slug = ?", replaced.Slug); err != nil {
-				return FileRecord{}, nil, err
-			}
 		}
 	}
 

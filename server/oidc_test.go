@@ -550,6 +550,8 @@ func TestInitOIDCConfigFromEnvironment(t *testing.T) {
 		t.Setenv("ART_OIDC_SCOPES", "")
 		t.Setenv("ART_OIDC_REDIRECT_URL", "")
 
+		// No group bindings, so the groups scope is not worth asking for.
+		withRolesConfig(t, "", "")
 		initOIDCConfig()
 
 		if !oidcEnabled() {
@@ -563,12 +565,29 @@ func TestInitOIDCConfigFromEnvironment(t *testing.T) {
 		}
 	})
 
-	t.Run("custom scopes", func(t *testing.T) {
+	// Group membership is only worth requesting when something uses it: a provider
+	// that does not recognise the scope rejects the whole authorization request.
+	t.Run("groups scope follows the bindings", func(t *testing.T) {
 		t.Setenv("ART_OIDC_ISSUER", "https://idp.example.com")
 		t.Setenv("ART_OIDC_CLIENT_ID", fakeIDPClientID)
-		t.Setenv("ART_OIDC_CLIENT_SECRET", fakeIDPClientSecret)
+		t.Setenv("ART_OIDC_SCOPES", "")
+
+		withRolesConfig(t, "", `{"admins":["admin"]}`)
+		initOIDCConfig()
+
+		want := defaultOIDCScopes + " groups"
+		if strings.Join(oidcScopes, " ") != want {
+			t.Errorf("scopes = %v, want %q", oidcScopes, want)
+		}
+	})
+
+	// An operator who names the scopes explicitly keeps control of them.
+	t.Run("groups scope is not duplicated", func(t *testing.T) {
+		t.Setenv("ART_OIDC_ISSUER", "https://idp.example.com")
+		t.Setenv("ART_OIDC_CLIENT_ID", fakeIDPClientID)
 		t.Setenv("ART_OIDC_SCOPES", "openid groups")
 
+		withRolesConfig(t, "", `{"admins":["admin"]}`)
 		initOIDCConfig()
 
 		if strings.Join(oidcScopes, " ") != "openid groups" {

@@ -62,6 +62,13 @@ type sessionClaims struct {
 	Email             string `json:"email,omitempty"`
 	Name              string `json:"name,omitempty"`
 	PreferredUsername string `json:"preferred_username,omitempty"`
+
+	// Perms is the resolved permission set. Roles and OIDC groups are folded
+	// into it at login, so a verification is a set lookup and this server never
+	// has to consult ART_ROLES again. A token minted before permissions existed
+	// carries no claim at all, which reads as no permissions - it can still
+	// read, but must log in again to change anything.
+	Perms []string `json:"perms,omitempty"`
 }
 
 // sessionAuthEnabled reports whether a signing key is configured.
@@ -102,10 +109,12 @@ func initSessionConfig() {
 	}
 }
 
-// mintSessionToken signs a session token. A ttl of zero or less omits the exp
+// mintSessionToken signs a session token. perms is the permission set the token
+// grants - resolved from roles and OIDC groups by the login callback, named on
+// the command line by the `token` command. A ttl of zero or less omits the exp
 // claim, producing a token that never expires (what `token -ttl 0` asks for).
 // now is a parameter so tests don't depend on the wall clock.
-func mintSessionToken(via string, id sessionIdentity, ttl time.Duration, now time.Time) (string, error) {
+func mintSessionToken(via string, id sessionIdentity, perms []string, ttl time.Duration, now time.Time) (string, error) {
 	if !sessionAuthEnabled() {
 		return "", errSessionAuthDisabled
 	}
@@ -121,6 +130,7 @@ func mintSessionToken(via string, id sessionIdentity, ttl time.Duration, now tim
 		Email:             id.Email,
 		Name:              id.Name,
 		PreferredUsername: id.PreferredUsername,
+		Perms:             perms,
 	}
 	if ttl > 0 {
 		claims.ExpiresAt = jwt.NewNumericDate(now.Add(ttl))

@@ -13,7 +13,6 @@ class FilesList extends StatefulComponent {
   const FilesList({
     required this.files,
     required this.api,
-    required this.isAuthenticated,
     required this.onDelete,
     required this.onRefresh,
     required this.searchQuery,
@@ -27,7 +26,6 @@ class FilesList extends StatefulComponent {
 
   final List<FileInfo> files;
   final ArtifactApiClient api;
-  final bool isAuthenticated;
   final Future<void> Function(FileInfo) onDelete;
 
   /// Reloads the list after a tag changes. A tag can move between files, so the
@@ -75,7 +73,6 @@ class _FilesListState extends State<FilesList> {
       (onComplete) => FilePropertiesDialog(
         file: file,
         api: component.api,
-        isAuthenticated: component.isAuthenticated,
         filenameUrlsEnabled: component.filenameUrlsEnabled,
         onChanged: component.onRefresh,
         onDelete: () => component.onDelete(file),
@@ -271,7 +268,7 @@ class _FilesListState extends State<FilesList> {
                         span([Component.text('Download')]),
                       ],
                     ),
-                    if (component.isAuthenticated)
+                    if (component.api.canDeleteFiles)
                       button(
                         classes: 'button is-small is-danger is-light',
                         onClick: () => component.onDelete(file),

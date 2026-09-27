@@ -18,7 +18,13 @@ import (
 )
 
 const (
-	defaultOIDCScopes = "openid profile email"
+	// openid is what makes the request an OIDC login at all - it is what returns an
+	// id_token - and profile carries the name the UI shows next to the logout
+	// button. email is deliberately not asked for: it is only the third fallback in
+	// that label, after name and preferred_username, and requesting less from a
+	// provider is the polite default. groups is appended below, and only when
+	// ART_OIDC_GROUPS actually uses the claim.
+	defaultOIDCScopes = "openid profile"
 
 	// How long discovery may take, and how often a failed attempt is retried.
 	// The retry interval stops a provider that is down from costing one request
@@ -33,6 +39,11 @@ var (
 	oidcClientSecret string
 	oidcScopes       []string
 	oidcRedirectURL  string
+
+	// oidcGroupsClaim is the id_token claim group membership is read from. The
+	// name is provider-specific (Entra and Auth0 namespace it), so it is
+	// overridable with ART_OIDC_GROUPS_CLAIM.
+	oidcGroupsClaim string
 
 	oidcProviderMu     sync.Mutex
 	oidcProvider       *oidc.Provider
@@ -50,6 +61,16 @@ func oidcEnabled() bool {
 	return oidcIssuer != "" && oidcClientID != ""
 }
 
+// hasString reports whether values already contains want.
+func hasString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
 // initOIDCConfig reads the ART_OIDC_* variables.
 func initOIDCConfig() {
 	oidcIssuer = strings.TrimRight(os.Getenv("ART_OIDC_ISSUER"), "/")
@@ -57,11 +78,24 @@ func initOIDCConfig() {
 	oidcClientSecret = os.Getenv("ART_OIDC_CLIENT_SECRET")
 	oidcRedirectURL = os.Getenv("ART_OIDC_REDIRECT_URL")
 
+	oidcGroupsClaim = os.Getenv("ART_OIDC_GROUPS_CLAIM")
+	if oidcGroupsClaim == "" {
+		oidcGroupsClaim = groupsClaimDefault
+	}
+
 	scopes := os.Getenv("ART_OIDC_SCOPES")
 	if scopes == "" {
 		scopes = defaultOIDCScopes
 	}
 	oidcScopes = strings.Fields(scopes)
+
+	// Only ask for group membership when ART_OIDC_GROUPS actually uses it. Some
+	// providers reject an authorization request carrying a scope they do not
+	// recognise - Google among them - and a deployment that left the bindings at
+	// their default has no use for the claim at all.
+	if groupsConfigured && !hasString(oidcScopes, "groups") {
+		oidcScopes = append(oidcScopes, "groups")
+	}
 
 	if !oidcEnabled() {
 		if oidcIssuer != "" || oidcClientID != "" {

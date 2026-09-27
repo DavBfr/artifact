@@ -8,9 +8,10 @@ import 'token_storage.dart';
 /// What a session token says about who is signed in.
 ///
 /// This is decoded straight out of the token so the UI can show a name next to
-/// the logout button. The signature is deliberately not checked here, and
-/// nothing in it may drive a decision: the server is the only thing that
-/// decides what a token is allowed to do.
+/// the logout button, and so it can hide controls the server would refuse
+/// anyway. The signature is deliberately not checked here, and nothing read here
+/// is a security decision: the server is the only thing that decides what a
+/// token is allowed to do, and a refusal is still handled when it arrives.
 class SessionInfo {
   const SessionInfo({
     this.subject,
@@ -18,7 +19,24 @@ class SessionInfo {
     this.name,
     this.username,
     this.via,
+    this.permissions = const <String>{},
   });
+
+  /// The permissions the server enforces. They are a compatibility surface -
+  /// they travel inside issued tokens - so they are added, never renamed.
+  static const String fileCreate = 'file:create';
+  static const String fileDelete = 'file:delete';
+  static const String tagAdd = 'tag:add';
+  static const String tagRemove = 'tag:remove';
+
+  /// Every permission, which is what a credential that is not one of this
+  /// server's JWTs - the static API token - always carries.
+  static const Set<String> allPermissions = {
+    fileCreate,
+    fileDelete,
+    tagAdd,
+    tagRemove,
+  };
 
   final String? subject;
   final String? email;
@@ -29,6 +47,15 @@ class SessionInfo {
   /// created with the `token` command. Null when the token is not a JWT at all,
   /// which is the usual case for the static API token.
   final String? via;
+
+  /// What the token grants, resolved by the server at login from its roles and
+  /// the provider's groups. A token with no `perms` claim - one minted before
+  /// permissions existed - yields an empty set, which is also what the server
+  /// makes of it: it can read, and nothing else.
+  final Set<String> permissions;
+
+  /// Whether the token grants permission.
+  bool hasPermission(String permission) => permissions.contains(permission);
 
   /// Decodes the payload of [token], or returns null when it is not a JWT whose
   /// payload can be read.
@@ -57,11 +84,22 @@ class SessionInfo {
         name: payload['name'] as String?,
         username: payload['preferred_username'] as String?,
         via: payload['via'] as String?,
+        permissions: _permissionsFrom(payload['perms']),
       );
     } catch (e) {
       // A token that isn't a readable JWT is expected here, not an error.
       return null;
     }
+  }
+
+  /// Reads the permission list out of the claim, ignoring anything that is not a
+  /// string so a malformed token degrades to "no permissions" rather than
+  /// throwing.
+  static Set<String> _permissionsFrom(Object? raw) {
+    if (raw is! List) {
+      return const <String>{};
+    }
+    return raw.whereType<String>().toSet();
   }
 
   /// Reads the result of a provider login out of the URL fragment, storing the
@@ -124,7 +162,7 @@ class SessionInfo {
   /// The best available human-readable name for the signed-in user, falling
   /// back to the subject when the token carries no profile claims.
   String? get label {
-    for (final candidate in [email, name, username, subject]) {
+    for (final candidate in [name, username, email, subject]) {
       if (candidate != null && candidate.isNotEmpty) {
         return candidate;
       }

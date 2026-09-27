@@ -159,6 +159,22 @@ func addFileTagsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A tag that already points at another file is moved off it, which is a
+	// removal on that file - so this needs tag:remove on top of the tag:add the
+	// route already requires. Checked before the move, not after it.
+	owners, err := tagsOwnedByAnotherFile(tags, slug)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(FileTagsResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
+	}
+	if len(owners) > 0 && !inHandlerPermission(w, r, permTagRemove) {
+		return
+	}
+
 	list, moved, err := addTagsToSlug(slug, tags)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)

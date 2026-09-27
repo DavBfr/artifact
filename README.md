@@ -22,6 +22,7 @@ Press `alt` to reveal the login button.
 - **Modern Web UI**: Clean, responsive interface built with Flutter/Jaspr
 - **RESTful API**: Full REST API for programmatic access
 - **Token Authentication**: Secure your uploads with API tokens
+- **Permissions and Roles**: OIDC groups map to roles, roles map to the `file:create`, `file:delete`, `tag:add` and `tag:remove` permissions, and the session token carries the result. See [Authorization](#authorization)
 - **File Management**: List, download, and delete files
 - **Short Links**: Every uploaded file gets a permanent, non-enumerable `/s/{slug}` link for sharing/downloading
 - **Filename URLs** *(optional)*: `/f/{filename}` always resolves to the latest version of that name; disable via `ART_NO_FILENAME_URL`
@@ -51,8 +52,11 @@ Press `alt` to reveal the login button.
 | `ART_OIDC_ISSUER`        | OIDC issuer URL; set with the client id to enable provider login                                                | None                                  |
 | `ART_OIDC_CLIENT_ID`     | OIDC client id registered with the provider                                                                     | None                                  |
 | `ART_OIDC_CLIENT_SECRET` | OIDC client secret; omit for a PKCE-only client                                                                 | None                                  |
-| `ART_OIDC_SCOPES`        | Space-separated OIDC scopes                                                                                     | `openid profile email`                |
+| `ART_OIDC_SCOPES`        | Space-separated OIDC scopes; `groups` is appended automatically when `ART_OIDC_GROUPS` is set                   | `openid profile`                      |
 | `ART_OIDC_REDIRECT_URL`  | Redirect URI sent to the provider; must match its registration                                                  | `<scheme>://<host>/api/auth/callback` |
+| `ART_OIDC_GROUPS_CLAIM`  | id_token claim holding group membership                                                                         | `groups`                              |
+| `ART_ROLES`              | JSON object mapping each role to the permissions it grants; set, it replaces the built-in roles                 | see [Authorization](#authorization)   |
+| `ART_OIDC_GROUPS`        | JSON object mapping an OIDC group to roles; unset grants every authenticated user `admin`                       | `{"*":["admin"]}`                     |
 | `ART_PORT`               | Port to listen on                                                                                               | `8080`                                |
 | `ART_UPLOAD_FOLDER`      | Data directory: holds the sqlite file-record database, plus the uploaded files themselves when `ART_STORAGE=fs` | `/var/uploads`                        |
 | `ART_STORAGE`            | Where uploaded files live: `fs` (local disk) or `s3`                                                            | `fs`                                  |
@@ -341,8 +345,9 @@ offsite copy of its metadata in the bucket.
 
 ## Authentication
 
-Uploading, deleting and tagging always require a credential; listing and downloading are public
-unless `ART_NO_LISTING=true`.
+Uploading, deleting and tagging always require a credential, and the credential needs the
+permission for the change it is making (see [Authorization](#authorization)); listing and
+downloading are public unless `ART_NO_LISTING=true`.
 
 Two kinds of credential are accepted, as `Authorization: Bearer <token>` or a bare
 `Authorization: <token>`:
@@ -360,6 +365,7 @@ configured. It must be at least 32 characters, and tokens carry `iss=artifact-se
 
 ```bash
 # Valid for 30 days
+# Granted no permissions, so it can read but not change anything
 docker exec artifact-server /app/upload_server token -sub ci -ttl 30d
 
 # Valid for ART_SESSION_TTL, 12h by default
@@ -367,14 +373,21 @@ docker exec artifact-server /app/upload_server token -sub ci
 
 # Never expires - a bearer credential that outlives everything but a secret rotation
 docker exec artifact-server /app/upload_server token -sub build-agent -ttl 0
+
+# Grant permissions explicitly; without -perms a minted token has none
+docker exec artifact-server /app/upload_server token -sub ci -perms file:create,tag:add
 ```
 
 Only the token goes to stdout, so it can be captured directly:
 
 ```bash
-TOKEN=$(docker exec artifact-server /app/upload_server token -sub ci -ttl 720h)
+TOKEN=$(docker exec artifact-server /app/upload_server token -sub ci -ttl 720h -perms file:create)
 curl -H "Authorization: Bearer $TOKEN" -F "file=@build.zip" http://localhost:8080/api/upload
 ```
+
+A minted token carries no permissions unless `-perms` says otherwise, so it is read-only by
+default. `ART_API_TOKEN` is the opposite: it predates permissions and always carries every one of
+them.
 
 **Rotating `ART_SESSION_SECRET` invalidates every session and every minted token at once.**
 There is no revocation list and no way to log out a single user, so rotation is the lever for
@@ -399,12 +412,76 @@ When OIDC is configured:
 - The callback verifies the `id_token` and mints a session token for the browser
   (`ART_SESSION_TTL`, 12h by default). The provider's own access token is discarded: only
   tokens this server signed are accepted.
-- Any identity the provider authenticates gets full upload and delete rights. There is no group
-  or claim check, so restrict access at the provider - for example with a client that only a
-  chosen set of users can authenticate against.
+- Any identity the provider authenticates is matched against `ART_OIDC_GROUPS` to decide what the
+  login may do. By default that is `admin` for everyone, which is what the server did before
+  roles existed - see [Authorization](#authorization) to restrict it.
 - The navbar shows who is signed in, decoded from the token for display only.
 - An unreachable provider does not stop the server starting: downloads and the API keep
   working, and `/api/auth/login` answers `503` until discovery succeeds.
+
+### Authorization
+
+A credential is not enough on its own: every change needs a permission. Permissions are the only
+thing the code checks, roles bundle them, and OIDC groups are mapped to roles.
+
+| Permission    | Needed for                                                                         |
+| ------------- | ---------------------------------------------------------------------------------- |
+| `file:create` | uploading a file (`POST /api/upload`)                                              |
+| `file:delete` | `DELETE /api/delete/{slug}`, and superseding a file by uploading its name          |
+| `tag:add`     | attaching tags - on an upload, or `POST /api/tags/{slug}`                          |
+| `tag:remove`  | detaching a tag, moving one off another file, or dropping a superseded file's tags |
+
+Uploading is authorized per effect rather than as one permission. A new name with no tags needs
+only `file:create`; adding tags needs `tag:add`; naming a tag that already belongs to another file
+moves it, which needs `tag:remove`; and uploading a name that is already live destroys that file,
+so it needs `file:delete`. `POST /api/tags/{slug}` works the same way: a tag that is currently on
+another file needs `tag:remove` on top of `tag:add`.
+
+Reading is not a permission. Listing and downloading stay public unless `ART_NO_LISTING=true`, and
+`ART_APPEND_ONLY=true` removes the replacement path altogether, so a creator-only credential needs
+no delete or tag permission there.
+
+#### Roles
+
+`ART_ROLES` maps each role to the permissions it grants. Unset, the built-in roles are:
+
+```json
+{
+  "creator": ["file:create", "tag:add"],
+  "tagger":  ["tag:remove"],
+  "deleter": ["file:delete"],
+  "admin":   ["file:create", "file:delete", "tag:add", "tag:remove"]
+}
+```
+
+Setting `ART_ROLES` **replaces** that registry instead of merging into it, so any role it does not
+redefine disappears. Defining a role as an empty list keeps the name valid - so a group binding
+that mentions it still starts - while granting nothing. Unknown role or permission names, and
+malformed JSON, stop the server at startup rather than silently granting or withholding access.
+
+#### Groups
+
+`ART_OIDC_GROUPS` maps a provider group to the roles its members are granted:
+
+```json
+{ "*": ["creator"], "admins": ["admin"] }
+```
+
+The key `"*"` means every authenticated user, including one the provider reports no groups for.
+
+Unset, it defaults to `{"*": ["admin"]}`: every identity the provider authenticates gets every
+permission, which is exactly how the server behaved before roles existed. Set it to restrict
+access - `{}` grants nobody anything, leaving authenticated users able to read and nothing else.
+
+Groups are read from the id_token only. The claim is `groups`; override it with
+`ART_OIDC_GROUPS_CLAIM` for a provider that namespaces it. The `groups` scope is requested from the
+provider only when `ART_OIDC_GROUPS` is set, so a deployment that does not use group membership
+never asks for a scope its provider might reject.
+
+Roles are resolved when a login completes, and the permission set that results is what the session
+token carries. Changing `ART_ROLES` or `ART_OIDC_GROUPS` therefore takes effect on a user's next
+login, and at the latest after `ART_SESSION_TTL`. Because `ART_API_TOKEN` always carries every
+permission, permissions cannot constrain it: use `ART_APPEND_ONLY=true` if it must not delete.
 
 ## Docker Compose Example
 
@@ -498,6 +575,8 @@ curl -X POST http://localhost:8080/api/upload \
 ```
 
 Each upload gets its own permanent short link. By default, uploading a file with the same name replaces the previous one (its short link stops working). With `ART_APPEND_ONLY=true`, uploads never replace an existing file - a new short link is created every time, even for a duplicate name.
+
+Permissions are checked per effect: a new name with no tags needs `file:create`, tags need `tag:add`, a tag that currently belongs to another file needs `tag:remove` as well, and replacing an existing name needs `file:delete` because it destroys that file. See [Authorization](#authorization).
 
 #### Uploading with tags
 
@@ -637,7 +716,8 @@ The `{slug}` is the id from the file's short link (`url`), not its display name.
 
 ## Security
 
-- **Authentication Required**: Uploading and deleting files require a valid API token
+- **Authentication and Authorization Required**: Uploading and deleting files require a valid API token carrying the matching permission
+- **Permissions**: `ART_ROLES` and `ART_OIDC_GROUPS` decide what a login may do; `ART_API_TOKEN` always carries every permission, so restrict it at the network or use `ART_APPEND_ONLY` if it must not be able to delete
 - **Non-root User**: Container runs as non-root user (UID 10001)
 - **Public Downloads**: Short links (`GET /s/{slug}`) require no authentication
 - **Unguessable Short Links**: Slugs are generated with `crypto/rand`, not sequential or derived from the file name

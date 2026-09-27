@@ -61,8 +61,13 @@ func main() {
 	// Session tokens (ART_SESSION_SECRET) are both what the OIDC login mints and
 	// what the `token` command issues. Read before the OIDC config, which
 	// refuses to enable itself without a signing key.
+	//
+	// The role configuration sits between the two: whether the provider is asked
+	// for group membership depends on whether ART_OIDC_GROUPS uses it.
 	initSessionConfig()
+	initRolesConfig()
 	initOIDCConfig()
+	logAuthzConfig()
 
 	webPortal = parseBool(os.Getenv("ART_WEB_PORTAL"), true)
 	noListing = parseBool(os.Getenv("ART_NO_LISTING"), false)
@@ -167,19 +172,26 @@ func main() {
 	r.HandleFunc("/api/files", mayRequireToken(listFilesHandler)).Methods("GET")
 	r.HandleFunc("/api/stats", mayRequireToken(statsHandler)).Methods("GET")
 	r.HandleFunc("/api/config", getConfigHandler).Methods("GET")
-	// Mutations are refused on a read-only instance. Authentication is checked
-	// first, so an unauthenticated caller still gets the same 401 it always
-	// would and learns nothing about the instance's role.
-	r.HandleFunc("/api/upload", requireToken(rejectWhenReadOnly(uploadFileHandler))).Methods("POST")
-	r.HandleFunc("/api/delete/{slug}", requireToken(rejectWhenReadOnly(deleteFileHandler))).Methods("DELETE")
+	// Mutations are refused on a read-only instance. Authentication and then
+	// permission are checked first, so an unauthenticated caller still gets the
+	// same 401 it always would, and a credential without the permission gets a
+	// 403 that says so rather than the instance's role.
+	//
+	// Uploading and adding tags look like a single permission each, but their
+	// effects depend on the payload, so they are checked per effect inside the
+	// handler (see uploadFileHandler and addFileTagsHandler).
+	r.HandleFunc("/api/upload", requireToken(requirePermission(permFileCreate, rejectWhenReadOnly(uploadFileHandler)))).Methods("POST")
+	r.HandleFunc("/api/delete/{slug}", requireToken(requirePermission(permFileDelete, rejectWhenReadOnly(deleteFileHandler)))).Methods("DELETE")
 	r.HandleFunc("/api/uploads/{filename}", filenameURLHandler).Methods("GET")
 
 	// File tag API Routes. Reading tags follows the listing policy
-	// (public unless ART_NO_LISTING); changing them always needs the token.
+	// (public unless ART_NO_LISTING); changing them needs the permission for the
+	// change - and adding a tag that already belongs to another file is also a
+	// removal from that file, which addFileTagsHandler checks for.
 	r.HandleFunc("/api/tags", mayRequireToken(listAllTagsHandler)).Methods("GET")
 	r.HandleFunc("/api/tags/{slug}", mayRequireToken(listFileTagsHandler)).Methods("GET")
-	r.HandleFunc("/api/tags/{slug}", requireToken(rejectWhenReadOnly(addFileTagsHandler))).Methods("POST")
-	r.HandleFunc("/api/tags/{slug}/{tag:.+}", requireToken(rejectWhenReadOnly(removeFileTagHandler))).Methods("DELETE")
+	r.HandleFunc("/api/tags/{slug}", requireToken(requirePermission(permTagAdd, rejectWhenReadOnly(addFileTagsHandler)))).Methods("POST")
+	r.HandleFunc("/api/tags/{slug}/{tag:.+}", requireToken(requirePermission(permTagRemove, rejectWhenReadOnly(removeFileTagHandler)))).Methods("DELETE")
 
 	// OIDC login. Registered unconditionally - the handlers answer 503 when OIDC
 	// isn't configured, so enabling it is purely a matter of setting env vars.

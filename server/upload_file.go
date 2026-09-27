@@ -105,8 +105,32 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 		mimeType = mime.TypeByExtension(ext)
 	}
 
-	// Reserve a db record (and slug) up front: unless append-only, this also
-	// soft-deletes any existing live record for the same display name.
+	// Uploading a name that is already live supersedes that file, which is a
+	// deletion and so needs file:delete. This has to be checked before anything
+	// is reserved or written, both so a caller without the permission changes
+	// nothing at all, and so a failure later in this handler cannot take the old
+	// file with it. ART_APPEND_ONLY removes the path entirely.
+	//
+	// Tags are a different matter: one may arrive after the file part, so they
+	// are authorized below, once every part has been read.
+	if !appendOnly {
+		existing, err := liveRecordByName(displayName)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(UploadResponse{
+				Success: false,
+				Error:   "Failed to check for an existing file: " + err.Error(),
+			})
+			return
+		}
+		if existing != nil && !inHandlerPermission(w, r, permFileDelete) {
+			return
+		}
+	}
+
+	// Reserve a db record (and slug) up front. The live record with the same
+	// display name, if any, is returned but left untouched: it is retired only
+	// once this upload has succeeded.
 	rec, replacedRec, err := reserveUpload(displayName, mimeType)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -191,6 +215,26 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Every part has been read, so what this upload will actually do to tags is
+	// known, and so is the permission that costs. Nothing has gone live yet, so
+	// a refusal here unwinds cleanly - including leaving the replaced file
+	// alone, which is why it was not retired at reserve time.
+	tagPerms, err := uploadTagPermissions(tags, replacedRec)
+	if err != nil {
+		discard()
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(UploadResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
+	}
+	if missing := firstMissingPermission(r, tagPerms...); missing != "" {
+		discard()
+		writeForbidden(w, permissionDeniedError(missing))
+		return
+	}
+
 	finalRec, err := finalizeUpload(rec.Slug, written, time.Now().UTC().Format(time.RFC3339))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -240,6 +284,40 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 		File:     fileInfoFromRecord(finalRec, applied),
 		Replaced: replacedRec != nil,
 	})
+}
+
+// uploadTagPermissions returns the permissions an upload's tags need, over and
+// above file:create. An error means the lookup failed, not that a permission is
+// missing - the caller is expected to answer 500 for it.
+//
+// Attaching a tag is tag:add. Taking one off a file is tag:remove, which happens
+// two ways here: a requested tag may already point at another file (a tag is
+// globally unique, so naming it moves it), or the superseded file may still hold
+// tags that this upload is about to drop along with it.
+func uploadTagPermissions(tags []Tag, replaced *FileRecord) ([]string, error) {
+	required := make([]string, 0, 2)
+	if len(tags) > 0 {
+		required = append(required, permTagAdd)
+	}
+
+	owners, err := tagsOwnedByAnotherFile(tags, "")
+	if err != nil {
+		return nil, err
+	}
+
+	needsRemove := len(owners) > 0
+	if !needsRemove && replaced != nil {
+		remaining, err := tagsOfSlug(db(), replaced.Slug)
+		if err != nil {
+			return nil, err
+		}
+		needsRemove = len(remaining) > 0
+	}
+	if needsRemove {
+		required = append(required, permTagRemove)
+	}
+
+	return required, nil
 }
 
 // readTagField reads a "tags" form field, reporting whether p was a tags field

@@ -18,7 +18,7 @@ func TestMintAndVerifySessionToken(t *testing.T) {
 		Email:             "user@example.com",
 		Name:              "Test User",
 		PreferredUsername: "tester",
-	}, time.Hour, now)
+	}, []string{permFileCreate, permTagAdd}, time.Hour, now)
 	if err != nil {
 		t.Fatalf("mintSessionToken: %v", err)
 	}
@@ -42,6 +42,9 @@ func TestMintAndVerifySessionToken(t *testing.T) {
 	if claims.Via != "oidc" {
 		t.Errorf("Via = %q, want %q", claims.Via, "oidc")
 	}
+	if len(claims.Perms) != 2 || claims.Perms[0] != permFileCreate || claims.Perms[1] != permTagAdd {
+		t.Errorf("Perms = %v, want [%s %s]", claims.Perms, permFileCreate, permTagAdd)
+	}
 	if claims.Email != "user@example.com" || claims.Name != "Test User" || claims.PreferredUsername != "tester" {
 		t.Errorf("display claims = %q/%q/%q", claims.Email, claims.Name, claims.PreferredUsername)
 	}
@@ -53,7 +56,7 @@ func TestMintAndVerifySessionToken(t *testing.T) {
 func TestVerifySessionTokenRejectsExpiredToken(t *testing.T) {
 	withAuthConfig(t, "", testSecret)
 
-	raw, err := mintSessionToken("mint", sessionIdentity{Subject: "ci"}, time.Minute, time.Now().Add(-2*time.Minute))
+	raw, err := mintSessionToken("mint", sessionIdentity{Subject: "ci"}, nil, time.Minute, time.Now().Add(-2*time.Minute))
 	if err != nil {
 		t.Fatalf("mintSessionToken: %v", err)
 	}
@@ -68,7 +71,7 @@ func TestVerifySessionTokenRejectsExpiredToken(t *testing.T) {
 func TestMintSessionTokenWithoutTTLNeverExpires(t *testing.T) {
 	withAuthConfig(t, "", testSecret)
 
-	raw, err := mintSessionToken("mint", sessionIdentity{Subject: "ci"}, 0, time.Now().Add(-10_000*time.Hour))
+	raw, err := mintSessionToken("mint", sessionIdentity{Subject: "ci"}, nil, 0, time.Now().Add(-10_000*time.Hour))
 	if err != nil {
 		t.Fatalf("mintSessionToken: %v", err)
 	}
@@ -195,7 +198,7 @@ func TestSessionTokensDisabledWithoutSecret(t *testing.T) {
 		t.Fatal("sessionAuthEnabled() = true with no ART_SESSION_SECRET")
 	}
 
-	if _, err := mintSessionToken("mint", sessionIdentity{Subject: "ci"}, time.Hour, time.Now()); !errors.Is(err, errSessionAuthDisabled) {
+	if _, err := mintSessionToken("mint", sessionIdentity{Subject: "ci"}, nil, time.Hour, time.Now()); !errors.Is(err, errSessionAuthDisabled) {
 		t.Errorf("mintSessionToken error = %v, want errSessionAuthDisabled", err)
 	}
 

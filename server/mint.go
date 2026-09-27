@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -20,9 +21,10 @@ func runTokenCommand(args []string) int {
 	name := fs.String("name", "", "optional human-readable name to store in the token")
 	ttlHelp := fmt.Sprintf("how long the token stays valid (e.g. 720h, 30d); defaults to ART_SESSION_TTL (%s); 0 means never expires", sessionTTLLabel())
 	ttlFlag := fs.String("ttl", "", ttlHelp)
+	permsFlag := fs.String("perms", "", "comma-separated permissions to grant; the default is none, so the token can read but not change anything")
 
 	fs.Usage = func() {
-		fmt.Fprint(os.Stderr, "Mint an API token signed with ART_SESSION_SECRET.\n\nUsage:\n  upload_server token -sub <subject> [-ttl <duration>] [-name <name>]\n\nFlags:\n")
+		fmt.Fprintf(os.Stderr, "Mint an API token signed with ART_SESSION_SECRET.\n\nUsage:\n  upload_server token -sub <subject> [-ttl <duration>] [-name <name>] [-perms <list>]\n\nKnown permissions: %s\n\nFlags:\n", strings.Join(allPermissions, ", "))
 		fs.PrintDefaults()
 	}
 
@@ -50,7 +52,14 @@ func runTokenCommand(args []string) int {
 	}
 
 	now := time.Now()
-	token, err := mintSessionToken("mint", sessionIdentity{Subject: *subject, Name: *name}, ttl, now)
+
+	perms, err := parsePermissionList(*permsFlag)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return 2
+	}
+
+	token, err := mintSessionToken("mint", sessionIdentity{Subject: *subject, Name: *name}, perms, ttl, now)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return 1
@@ -61,6 +70,7 @@ func runTokenCommand(args []string) int {
 	} else {
 		fmt.Fprintf(os.Stderr, "Minted a token for %q, valid for %s (until %s)\n", *subject, ttl, now.Add(ttl).Format(time.RFC3339))
 	}
+	fmt.Fprintf(os.Stderr, "Granted permissions: %s\n", listPermissions(perms))
 	fmt.Println(token)
 
 	return 0

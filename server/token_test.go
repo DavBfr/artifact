@@ -38,7 +38,7 @@ func TestRequireTokenAcceptsEitherCredential(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			token := test.token
 			if token == "expired" {
-				expired, err := mintSessionToken("mint", sessionIdentity{Subject: "ci"}, time.Minute, time.Now().Add(-time.Hour))
+				expired, err := mintSessionToken("mint", sessionIdentity{Subject: "ci"}, nil, time.Minute, time.Now().Add(-time.Hour))
 				if err != nil {
 					t.Fatalf("minting expired token: %v", err)
 				}

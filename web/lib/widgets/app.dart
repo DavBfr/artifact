@@ -287,7 +287,7 @@ class AppState extends State<App> {
           // Stats
           StatsCard(stats: _stats),
 
-          if (_api.isAuthenticated)
+          if (_api.canCreateFiles)
             UploadSection(
               maxContentLength: _config.maxContentLength,
               isUploading: _isUploading,
@@ -301,7 +301,6 @@ class AppState extends State<App> {
           FilesList(
             files: _files!,
             api: _api,
-            isAuthenticated: _api.isAuthenticated,
             onDelete: _delete,
             onRefresh: _load,
             searchQuery: _searchQuery,
@@ -391,6 +390,18 @@ class AppState extends State<App> {
       // Show error notification
       NotificationMessenger.of(context).showNotification(
         BulmaNotification.error(e.message, title: 'Authentication Error'),
+      );
+    } on PermissionException catch (e) {
+      setState(() {
+        _isUploading = false;
+        _uploadingFileName = null;
+        _uploadProgress = 0;
+      });
+
+      // Replacements and tags need more than file:create, so the server's
+      // message says which permission this upload was missing.
+      NotificationMessenger.of(context).showNotification(
+        BulmaNotification.error(e.message, title: 'Not Permitted'),
       );
     } on ApiException catch (e) {
       setState(() {

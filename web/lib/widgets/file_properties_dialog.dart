@@ -14,7 +14,6 @@ class FilePropertiesDialog extends StatefulComponent {
   const FilePropertiesDialog({
     required this.file,
     required this.api,
-    required this.isAuthenticated,
     required this.filenameUrlsEnabled,
     required this.onChanged,
     required this.onDelete,
@@ -24,7 +23,6 @@ class FilePropertiesDialog extends StatefulComponent {
 
   final FileInfo file;
   final ArtifactApiClient api;
-  final bool isAuthenticated;
   final bool filenameUrlsEnabled;
 
   /// Called after a successful tag mutation so the list behind the dialog can
@@ -276,7 +274,7 @@ class _FilePropertiesDialogState extends State<FilePropertiesDialog> {
         else
           div(classes: 'tags mb-3', [for (final tag in _tags) _tagChip(tag)]),
 
-        if (component.isAuthenticated)
+        if (component.api.canAddTags)
           div(classes: 'field has-addons mb-0', [
             div(classes: 'control is-expanded', [
               input(
@@ -312,10 +310,6 @@ class _FilePropertiesDialogState extends State<FilePropertiesDialog> {
                 ],
               ),
             ]),
-          ])
-        else
-          const p(classes: 'has-text-grey is-size-7', [
-            Component.text('Login to manage tags.'),
           ]),
       ],
       actions: [
@@ -325,7 +319,7 @@ class _FilePropertiesDialogState extends State<FilePropertiesDialog> {
           attributes: const {'download': ''},
           const [IconLabel(icon: 'download', label: 'Download')],
         ),
-        if (component.isAuthenticated)
+        if (component.api.canDeleteFiles)
           BulmaButton(
             color: BulmaColor.danger,
             onPressed: _isBusy ? null : _delete,
@@ -377,7 +371,7 @@ class _FilePropertiesDialogState extends State<FilePropertiesDialog> {
         },
         [Component.text(tag)],
       ),
-      if (component.isAuthenticated)
+      if (component.api.canRemoveTags)
         button(
           classes: 'delete is-small ml-2',
           attributes: const {'title': 'Remove this tag', 'type': 'button'},

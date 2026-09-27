@@ -79,12 +79,13 @@ RUN \
     -add-style-src "https://cdnjs.cloudflare.com https://cdn.jsdelivr.net" \
     -add-style-src-attr "'unsafe-inline'" \
     $(find /output/app/static -name '*.html' -print)) && \
-    CGO_ENABLED=0 GOOS=linux go build -a -ldflags "-extldflags \"-static\" -s -w -X \"main.cspHeader=${CSP_HASHED}\"" -installsuffix cgo -o upload_server .
+    GOTELEMETRY=off CGO_ENABLED=0 GOOS=linux go build -a -ldflags "-extldflags \"-static\" -s -w -X \"main.cspHeader=${CSP_HASHED}\"" -installsuffix cgo -o upload_server .
 
 RUN \
-    mkdir -p /output/var/uploads &&\
+    mkdir -p /output/var/uploads /output/etc/ssl/certs &&\
     chown 10001:10001 /output/var/uploads &&\
-    mv upload_server /output/app/
+    mv upload_server /output/app/ &&\
+    cp /etc/ssl/certs/ca-certificates.crt /output/etc/ssl/certs/
 
 # Final stage - minimal Alpine Linux
 FROM scratch
@@ -94,9 +95,6 @@ LABEL org.opencontainers.image.authors="dev.nfet.net@gmail.com"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 LABEL org.opencontainers.image.title="Artifact Server"
 LABEL org.opencontainers.image.description="A simple file upload server with web interface."
-
-# Install ca-certificates for HTTPS support
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 # Copy the built Go binary from builder
 COPY --from=builder /output /

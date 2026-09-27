@@ -109,7 +109,7 @@ func decodeConfig(t *testing.T, token string) (ConfigResponse, string) {
 func mintTestToken(t *testing.T, ttl time.Duration) string {
 	t.Helper()
 
-	token, err := mintSessionToken("mint", sessionIdentity{Subject: "ci", Email: "ci@example.com"}, ttl, time.Now())
+	token, err := mintSessionToken("mint", sessionIdentity{Subject: "ci", Email: "ci@example.com"}, allPermissions, ttl, time.Now())
 	if err != nil {
 		t.Fatalf("minting session token: %v", err)
 	}

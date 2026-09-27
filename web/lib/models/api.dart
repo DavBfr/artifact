@@ -6,6 +6,7 @@ import 'package:jaspr/jaspr.dart';
 import 'package:universal_web/js_interop.dart';
 import 'package:universal_web/web.dart' as web;
 
+import '../utils/session_info.dart';
 import 'api_models.dart';
 
 /// API client for communicating with the artifact server
@@ -25,6 +26,28 @@ class ArtifactApiClient {
   final String? authToken;
 
   bool get isAuthenticated => authToken != null && authToken!.isNotEmpty;
+
+  /// What the current token grants, decoded from the token purely so the UI can
+  /// hide controls the server would refuse anyway. The server decides what a
+  /// token may do; this is cosmetic, and a refusal is still handled when it
+  /// comes back as a 403.
+  ///
+  /// A token that is not one of this server's JWTs is the static API token,
+  /// which always carries every permission.
+  late final Set<String> permissions = _resolvePermissions();
+
+  Set<String> _resolvePermissions() {
+    if (!isAuthenticated) {
+      return const <String>{};
+    }
+    final info = SessionInfo.fromToken(authToken);
+    return info == null ? SessionInfo.allPermissions : info.permissions;
+  }
+
+  bool get canCreateFiles => permissions.contains(SessionInfo.fileCreate);
+  bool get canDeleteFiles => permissions.contains(SessionInfo.fileDelete);
+  bool get canAddTags => permissions.contains(SessionInfo.tagAdd);
+  bool get canRemoveTags => permissions.contains(SessionInfo.tagRemove);
 
   /// Get authorization headers
   Map<String, String> get _headers {
@@ -164,15 +187,23 @@ class ArtifactApiClient {
           completer.completeError(
             AuthenticationException('Invalid authentication token'),
           );
-        } else if (xhr.status == 413) {
+        } else if (xhr.status == 403 || xhr.status == 413) {
+          final fallback = xhr.status == 413
+              ? 'File too large'
+              : 'Not permitted';
+          String? message;
           try {
-            final data = jsonDecode(xhr.responseText);
-            completer.completeError(
-              FileTooLargeException(data['error'] ?? 'File too large'),
-            );
+            message =
+                (jsonDecode(xhr.responseText) as Map<String, dynamic>)['error']
+                    as String?;
           } catch (e) {
-            completer.completeError(FileTooLargeException('File too large'));
+            message = null;
           }
+          completer.completeError(
+            xhr.status == 413
+                ? FileTooLargeException(message ?? fallback)
+                : PermissionException(message ?? fallback),
+          );
         } else {
           try {
             final data = jsonDecode(xhr.responseText);
@@ -225,6 +256,8 @@ class ArtifactApiClient {
       return DeleteResponse.fromJson(jsonDecode(response.body));
     } else if (response.statusCode == 401) {
       throw AuthenticationException('Invalid authentication token');
+    } else if (response.statusCode == 403) {
+      throw PermissionException(_errorMessage(response, 'Delete failed'));
     } else if (response.statusCode == 404) {
       throw FileNotFoundException('File not found: $slug');
     } else {
@@ -340,19 +373,28 @@ class ArtifactApiClient {
     if (response.statusCode == 401) {
       throw AuthenticationException('Invalid authentication token');
     }
-
-    String? message;
-    try {
-      message =
-          (jsonDecode(response.body) as Map<String, dynamic>)['error']
-              as String?;
-    } catch (_) {
-      message = null;
+    if (response.statusCode == 403) {
+      // A tag move needs tag:remove as well as tag:add, and the server's
+      // message says which one is missing.
+      throw PermissionException(_errorMessage(response, 'Not permitted'));
     }
     throw ApiException(
-      message ?? 'Failed to $action',
+      _errorMessage(response, 'Failed to $action'),
       statusCode: response.statusCode,
     );
+  }
+
+  /// The server's `error` field, or fallback when the body is not the JSON we
+  /// expect - a proxy or an unhandled panic both produce one.
+  static String _errorMessage(http.Response response, String fallback) {
+    try {
+      final message =
+          (jsonDecode(response.body) as Map<String, dynamic>)['error']
+              as String?;
+      return message ?? fallback;
+    } catch (e) {
+      return fallback;
+    }
   }
 }
 
@@ -370,6 +412,11 @@ class ApiException implements Exception {
 /// Authentication exception
 class AuthenticationException extends ApiException {
   AuthenticationException(super.message) : super(statusCode: 401);
+}
+
+/// The credential was valid but does not carry the permission the change needs.
+class PermissionException extends ApiException {
+  PermissionException(super.message) : super(statusCode: 403);
 }
 
 /// File not found exception
