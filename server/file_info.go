@@ -1,12 +1,9 @@
 package main
 
 // fileInfoFromRecord builds the API-facing FileInfo from a db FileRecord and
-// its tags. An empty tag list is rendered as [] rather than null so clients can
-// always iterate the field.
+// its tags. The tags field is omitted from the JSON entirely when the file has
+// none, so a nil slice is fine here.
 func fileInfoFromRecord(rec FileRecord, tags []string) FileInfo {
-	if tags == nil {
-		tags = []string{}
-	}
 	return FileInfo{
 		Name:     rec.DisplayName,
 		Size:     rec.Size,

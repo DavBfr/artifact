@@ -11,7 +11,7 @@ type FileInfo struct {
 	Modified string   `json:"modified"`
 	URL      string   `json:"url"`
 	MimeType string   `json:"mime_type"`
-	Tags     []string `json:"tags"`
+	Tags     []string `json:"tags,omitempty"`
 }
 
 type ListFilesResponse struct {

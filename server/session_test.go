@@ -23,7 +23,9 @@ func TestMintAndVerifySessionToken(t *testing.T) {
 		t.Fatalf("mintSessionToken: %v", err)
 	}
 
-	claims, err := verifySessionToken(raw)
+	// Verified at the instant it was minted for, rather than against the wall
+	// clock, so the test can't expire on its own.
+	claims, err := verifySessionTokenAt(raw, now)
 	if err != nil {
 		t.Fatalf("verifySessionToken: %v", err)
 	}

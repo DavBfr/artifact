@@ -260,7 +260,7 @@ Public by default; requires a token if `ART_NO_LISTING=true`. Query parameters (
 | `search` | Case-insensitive substring match against the file name                  | none       |
 | `order`  | One of `name`, `-name`, `date`, `-date`, `size`, `-size`                | `-date`    |
 
-The response no longer includes a grand total - keep paging with increasing `offset` until `count` comes back `0`. Each entry also carries a `tags` array (empty, never null, when the file has no tags).
+The response no longer includes a grand total - keep paging with increasing `offset` until `count` comes back `0`. Each entry carries a `tags` array when the file has tags, and omits the field when it has none.
 
 ### Upload File
 

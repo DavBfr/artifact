@@ -91,12 +91,8 @@ func main() {
 	}
 	log.Printf("Blob storage: %s", storageKind)
 
-	// The sqlite db lives directly in uploadFolder (no separate volume). Its
-	// absence beforehand means this is a fresh db, so any pre-existing flat
-	// files should be adopted via the one-time legacy import.
+	// The sqlite db lives directly in uploadFolder (no separate volume).
 	dbPath := filepath.Join(uploadFolder, dbFileName)
-	_, statErr := os.Stat(dbPath)
-	dbIsNew := os.IsNotExist(statErr)
 
 	// Open the file record database. modernc.org/sqlite is pure Go (no CGO),
 	// matching this project's static/scratch build. SQLite only allows one
@@ -114,15 +110,6 @@ func main() {
 	}
 	if err := initSchema(); err != nil {
 		log.Fatalf("Failed to initialize database schema: %v", err)
-	}
-
-	// One-time migration: adopt any pre-existing flat files into the db-backed
-	// model. Filesystem-only by design: on object storage there is no local
-	// flat-file layout to adopt.
-	if dbIsNew && storageKind == storageFilesystem {
-		if err := importLegacyUploads(); err != nil {
-			log.Printf("Legacy upload import failed: %v", err)
-		}
 	}
 
 	// Setup router
@@ -156,9 +143,12 @@ func main() {
 	r.HandleFunc("/api/auth/callback", oidcCallbackHandler).Methods("GET")
 
 	// File download API Routes
-	r.HandleFunc("/s/{slug}", shortLinkHandler).Methods("GET")
-	r.HandleFunc("/t/{tag:.+}", tagDownloadHandler).Methods("GET")
-	r.HandleFunc("/f/{filename}", filenameURLHandler).Methods("GET")
+	// File download API Routes. HEAD is routed alongside GET so proxies, CDNs and
+	// download managers can size a file without transferring it; the handlers
+	// already answer it without reading the blob.
+	r.HandleFunc("/s/{slug}", shortLinkHandler).Methods("GET", "HEAD")
+	r.HandleFunc("/t/{tag:.+}", tagDownloadHandler).Methods("GET", "HEAD")
+	r.HandleFunc("/f/{filename}", filenameURLHandler).Methods("GET", "HEAD")
 
 	// Static files served as fallback (no /static/ prefix)
 	// Check if static folder and index.html exist

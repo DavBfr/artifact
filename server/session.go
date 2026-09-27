@@ -134,6 +134,14 @@ func mintSessionToken(via string, id sessionIdentity, ttl time.Duration, now tim
 // or asymmetrically-signed token can't be smuggled past the keyfunc. A token
 // without an exp claim is accepted - only `-ttl 0` mints those.
 func verifySessionToken(raw string) (*sessionClaims, error) {
+	return verifySessionTokenAt(raw, time.Now())
+}
+
+// verifySessionTokenAt is verifySessionToken with the clock injected, so a test
+// that mints a token at a fixed instant can verify it at that same instant
+// instead of racing the wall clock (an exp claim is only in the future relative
+// to the clock it was minted against).
+func verifySessionTokenAt(raw string, now time.Time) (*sessionClaims, error) {
 	if !sessionAuthEnabled() {
 		return nil, errSessionAuthDisabled
 	}
@@ -145,6 +153,7 @@ func verifySessionToken(raw string) (*sessionClaims, error) {
 		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
 		jwt.WithIssuer(sessionIssuer),
 		jwt.WithAudience(sessionAudience),
+		jwt.WithTimeFunc(func() time.Time { return now }),
 	)
 	if err != nil {
 		// Wrapped so callers can test the outcome without matching jwt/v5's
