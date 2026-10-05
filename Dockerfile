@@ -1,4 +1,4 @@
-FROM --platform=linux/amd64 ghcr.io/gmeligio/flutter-web:3.47.5 AS web_builder
+FROM --platform=linux/amd64 ghcr.io/gmeligio/flutter-web:3.47.6 AS web_builder
 
 # Set working directory
 WORKDIR /app
