@@ -81,6 +81,50 @@ class AppState extends State<App> {
     filenameUrlsEnabled: _config.filenameUrlsEnabled,
   );
 
+  /// Whether a rejected credential can be renewed by going back to the provider:
+  /// either it was issued by a provider login, or the server is known to offer
+  /// one and the credential is a session token this server signed (a token from
+  /// the `token` command), which a provider login can replace.
+  bool get _canRenewWithProvider =>
+      (_session?.isOidc ?? false) ||
+      (_config.oidcEnabled && (_session?.isSession ?? false));
+
+  /// Sends the browser to the provider login - the one interactive way to obtain
+  /// a session token.
+  void _redirectToProviderLogin() {
+    web.window.location.assign('${_api.baseUrl}/api/auth/login');
+  }
+
+  /// Marks, for this tab, that an automatic renewal has already been tried. The
+  /// rejected token is dropped before redirecting, so this only guards against a
+  /// provider that keeps issuing tokens the server refuses, which would
+  /// otherwise bounce the browser through the login round trip forever.
+  static const String _reloginGuardKey = 'art_oidc_relogin_attempted';
+
+  bool get _reloginAttempted {
+    try {
+      return web.window.sessionStorage.getItem(_reloginGuardKey) == '1';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  void _markReloginAttempt() {
+    try {
+      web.window.sessionStorage.setItem(_reloginGuardKey, '1');
+    } catch (e) {
+      // Nothing to do - the worst case is one extra redirect.
+    }
+  }
+
+  void _clearReloginAttempt() {
+    try {
+      web.window.sessionStorage.removeItem(_reloginGuardKey);
+    } catch (e) {
+      // Nothing to do - a stale guard only costs the popup on a later failure.
+    }
+  }
+
   /// Turns a callback error code into something worth reading.
   String _describeAuthError(String code) {
     switch (code) {
@@ -118,13 +162,28 @@ class AppState extends State<App> {
 
     try {
       final configResponse = await _api.getConfig();
+      // The credential works - a renewal, if this load was one, has settled.
+      _clearReloginAttempt();
       setState(() {
         _config = configResponse;
         _configLoaded = true;
       });
     } on AuthenticationException {
-      // A stored credential was rejected - drop it and fall back to the
-      // unauthenticated view.
+      // A stored credential was rejected. When it was a provider session it has
+      // most likely simply expired, and the fix is to sign in again rather than
+      // to tell the user about it: send the browser back to the provider, which
+      // renews silently when it still has a session of its own.
+      if (_canRenewWithProvider) {
+        TokenStorage.removeToken(context);
+        if (!_reloginAttempted) {
+          _markReloginAttempt();
+          _redirectToProviderLogin();
+          return;
+        }
+        // The provider could not renew the session; fall through and explain.
+      }
+
+      // Drop the rejected credential and fall back to the unauthenticated view.
       TokenStorage.removeToken(context);
       setState(() {
         _config = _signedOutConfig;
@@ -428,7 +487,8 @@ class AppState extends State<App> {
     // there is no token for the user to type, so no dialog is offered. The token
     // form remains reachable only when no provider is configured.
     if (_config.oidcEnabled) {
-      web.window.location.assign('${_api.baseUrl}/api/auth/login');
+      _markReloginAttempt();
+      _redirectToProviderLogin();
       return;
     }
 

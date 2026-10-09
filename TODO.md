@@ -36,6 +36,9 @@
 - [ ] Webhook notifications
 - [ ] Virus/malware scanning integration
 - [ ] Dark mode support
+- [ ] Bulk delete UI
+- [ ] Search should include tags
+- [ ] Increase storage slug subdirectory depth
 
 ## Known issues
 

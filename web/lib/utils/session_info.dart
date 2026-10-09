@@ -38,6 +38,9 @@ class SessionInfo {
     tagRemove,
   };
 
+  /// The `via` value a provider (OIDC) login signs into the token.
+  static const String viaOidc = 'oidc';
+
   final String? subject;
   final String? email;
   final String? name;
@@ -56,6 +59,16 @@ class SessionInfo {
 
   /// Whether the token grants permission.
   bool hasPermission(String permission) => permissions.contains(permission);
+
+  /// Whether the token came from a provider login, which is the only kind of
+  /// credential the user can renew without pasting anything: sending the browser
+  /// back to the provider signs in again, silently when the provider still has a
+  /// session of its own.
+  bool get isOidc => via == viaOidc;
+
+  /// Whether the token is one this server signed, rather than the static API
+  /// token, which carries no `via` claim and never expires.
+  bool get isSession => via != null;
 
   /// Decodes the payload of [token], or returns null when it is not a JWT whose
   /// payload can be read.
