@@ -1,4 +1,4 @@
-FROM --platform=linux/amd64 ghcr.io/gmeligio/flutter-web:3.47.6 AS web_builder
+FROM --platform=linux/amd64 ghcr.io/gmeligio/flutter-web:3.50.0 AS web_builder
 
 # Set working directory
 WORKDIR /app
@@ -48,7 +48,7 @@ RUN \
     -i $f -o dist/$base; \
     done
 
-FROM golang:1.27-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414 AS builder
+FROM golang:1.27-alpine@sha256:70bd7ddea8b6cbe5d6943cde279d6b67feb10cc924fb9100d1d8757c1575b280 AS builder
 
 ARG TARGETARCH
 ARG CSP_VERSION=v0.1.5
